@@ -140,4 +140,9 @@ j.setwaveform(1,"sinc")
 ENJOY!!!
 
 
+to be done:
+	document protocol
+	other modes of the jds6600: measure, counter, sweep, pulse, burst, system-setting
+	upload and download of arbitrary waveforms
+
 Kristoff (ON1ARF)
