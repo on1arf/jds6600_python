@@ -1,0 +1,186 @@
+# overview of the registers of a jds6600 signal generator
+# Kristoff Bonne (ON1ARF)
+# version 20180126
+
+# list
+# for more info, see additional information below
+
+
+# 00 to 01: hardware information registers
+00 model
+01 SN
+
+# 20 to 31: "wave" mode
+20 channel-enable (x,x)
+21 wave1
+22 wave2
+23 frequency1
+24 frequency2
+25 amplitude1
+26 amplitude2
+27 offset1
+28 offset2
+29 dutycycle1
+30 dutycycle2
+31 phase
+
+# 32 to 35: mode and UI registers
+32 action (x,x,x,x)
+33 mode (4 USB-bits, write 4 LSB-bits)
+34 control UI menu
+35 mode (simular to 33, read-only)
+
+# 36 to 38: "measure" mode (control registers)
+36 measure coupling
+37 measure gate time
+38 measure mode
+
+# 39: reset counter
+39 reset counter / burst reset counter / burst manual trigger: write 0 to register
+
+# 40 to 44: "sweep" mode
+40 sweep start freq
+41 sweep end freq
+42 sweep sweep time
+43 sweep direction
+44 sweep sweep-mode (lin/log)
+
+# 45 to 48: "pulse" mode
+45 pulse pulse-time
+46 pulse T (periode)
+47 pulse offset
+48 pulse amplitude
+
+# 49 to 50: "burst" mode
+49 burst number of bursts
+50 burst mode (trigger)
+
+# 51 to 56: system settings
+# see remarks about firmware-bug below
+51 system (READ: ???, WRITE: sound)
+52 system (READ: sound, WRITE: brightness)
+53 system (READ: brightness, WRITE:language)
+54 system (READ: language, WRITE: syncr.)
+55 system (READ: sync, WRITE ArbMaxNum)
+56 system (READ: ArbMaxNum, WRITE: ????)
+
+# 70 to  72: profile actions (part of system menu)
+70 profile save: write profile number to register
+71 profile load: write profile number to register
+72 profile clear: write profile number to register
+
+# 80: "counter" mode (data)
+80 counter counter
+
+# 81 to 89: "measure" mode (data)
+81 measure freq (Hz * 10)
+82 measure freq (HZ * 1000)
+83 measure PW+
+84 measure PW-
+85 measure T (periode)
+86 measure dutycycle
+87 measure unknown 1 (related to freq. related to gatetime), same as counter in "counter" mode
+88 measure unknown 2 (inverse-related to freq.)
+89 measure unknown 3 (inverse-related to freq.)
+
+# 90 to 95: all zero
+
+
+#### additional information
+
+
+### "wave" mode:
+
+** Register 20: channel-enable: 2-value field
+(channel1 , channel 2)
+
+** Register 21 and 22: waveform
+0 = sine
+1 = square
+2 = pulse
+3 = triangle
+4 = partial Sine
+5 = CMOS
+6 = DC
+7 = Half Wave
+8 = Full Wave
+9 = Pos. Lader
+10 = Neg. Lader
+11 = Noise
+12 = Exp. Rise
+13 = Exp. Decay
+14 = Multi Tone
+15 = Sinc
+16 = Lorenz
+101 to 160 = Arbitrary01 to Arbitrary60
+
+
+** Register 23 and 24: frequency
+Format: frequency,multiplier
+
+Frequency: unit = Hz / 100
+Multiplier:
+0:	1 (Hz)
+1: 1e3 (Khz)
+2: 1e6 (MHz)
+3: 1e-3 (mHz)
+4: 1e-6 (µHz)
+
+For multipliers 0 (Hz), 1 (KHz) and 2 (MHz), the multiplier setting only
+changes the visualisation aspect of the frequency on the UI
+For multipliers 2 (mHZ) and 3 (µ Hz), the multiplier affects both the
+visualisation and the frequency!
+Using multipliers 2 and 3 allows for setting the frequency with a precision 
+larger then 0.01 Hz.
+
+The maximum frequencies are:
+multipliers 0, 1 and 2: hardware limit of signal generator
+multiplier 2: 80 KHz
+multiplier 3: 80 Hz
+
+
+** Register 25 and 26: amplitude
+unit = mV
+
+** Register 27 and 28: DC offset
+unit = 0.01V, then add 1000 
+
+** Register 29 and 30: DutyCycle
+unit = 0.1 degrees
+
+
+#### Mode / action
+Register 32: action
+	Count on: 1,0,0,0, Count off: 0,0,0,0
+	Sweep on: 0,1,0,0, Sweep off: 0,0,0,0
+	Pulse on: 1,0,1,1, Pulse off: 0,0,1,1
+	Burst on: 1,0,1,1, Burst off: 0,0,1,1
+
+Register 33: mode
+	READING:
+		  0: Wave menu, channel 1 on top
+		 16: Wave menu, channel 2 on top
+		 32: System menu
+		 48: not used
+		 64: Measure menu
+		 72: Counter menu
+		 80: Sweep/Channel1 menu
+		 88: Sweep/Channel2 menu
+		 96: Pulse menu
+		104: Burst menu
+
+	WRITING:
+		  0: Wave menu, channel 1 on top
+		  1: Wave menu, channel 2 on top
+		  2: System menu
+		  3: not used
+		  4: Measure menu
+		  5: Counter menu
+		  6: Sweep/Channel1 menu
+		  7: Sweep/Channel2 menu
+		  8: Pulse menu
+		  9: Burst menu
+
+
+
+

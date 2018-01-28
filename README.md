@@ -3,6 +3,7 @@ jds6600_python:
 Python class to remote-control a Junce-Instrument JDS6600 signal generator, using the USB-connection (serial-line emulation)
 
 version 0.0.1 (2018/01/19): initial release, reading basic parameters
+version 0.0.2 (2018/01/28): added "measure" menu + support functions, documtation
 
 
 API-calls:
@@ -105,35 +106,7 @@ setphase(phase)
 
 *** Examples
 
-
-from jds6600 import jds6600
-
-jds6600.getAPIversion()
-jds6600.getAPIrelease()
-
-j = jds6600("/dev/ttyUSB3")
-
-j.getwaveformlist()
-
-j.getdevicetype()
-j.getserialnumber()
-j.getchannelenable()
-
-for ch in (1,2):
-	j.getwaveform(ch)
-	j.getfrequency(ch)
-	j.getamplitude(ch)
-	j.getoffset(ch)
-	j.getdutycycle(ch)
-
-j.getphase()
-
-
-j.setfrequency(1,1000)
-j.setfrequency_m(1,40000,1)
-
-j.setwaveform(2,2)
-j.setwaveform(1,"sinc")
+See examples/readjds.py
 
 
 

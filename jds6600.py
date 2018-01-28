@@ -28,6 +28,11 @@ class UnexpectedReplyError(ValueError):
 class FormatError(ValueError):
 	pass
 
+class WrongMode(RuntimeError):
+	# called when commands are issued with the jds6600 not in the correct
+	# mode
+	pass
+
 
 #################
 # JDS6600 class #
@@ -54,17 +59,20 @@ class jds6600:
 	DUTYCYCLE1=29
 	DUTYCYCLE2=30
 	PHASE=31
-	AUXMODEENABLE=32
+	ACTION=32
 	MODE=33
-	MEASURE_COUPL=36
+	MEASURE_COUP=36
 	MEASURE_GATE=37
 	MEASURE_MODE=38
 	MEASURE_DATA_FREQ_LOWRES=81
 	MEASURE_DATA_FREQ_HIGHRES=82
-	MEASURE_DATA_PWPLUS=83
-	MEASURE_DATA_PWMIN=84
-	MEASURE_DATA_PERIODE=85
+	MEASURE_DATA_PW1=83
+	MEASURE_DATA_PW0=84
+	MEASURE_DATA_PERIOD=85
 	MEASURE_DATA_DUTYCYCLE=86
+	MEASURE_DATA_U1=87
+	MEASURE_DATA_U2=88
+	MEASURE_DATA_U3=89
 
 	COUNTER_COUPL=26
 	COUNTER_RESETCOUNTER=37
@@ -87,18 +95,23 @@ class jds6600:
 
 	# modes: register 33
 	# note: use lowest 4 bits for wrting
-	# note: use highest 4 buts for reading
-	modes = ("WAVE_CH1", "WAVE_CH2", "SYSTEM","","MEASURE","COUNTER","SWEEP_CH1","SWEEP_CH2","PULSE","BURST")
+	# note: use highest 4 bits for reading
+	modes = ((0,"WAVE_CH1"),(0,"WAVE_CH1"),(1,"WAVE_CH2"),(1,"WAVE_CH2"),(2,"SYSTEM"),(2,"SYSTEM"),(-1,""),(-1,""),(4,"MEASURE"),(5,"COUNTER"),(6,"SWEEP_CH1"),(7,"SWEEP_CH2"),(8,"PULSE"),(9,"BURST"))
 
 	# action: register 32
+	actionlist=(("STOP","0,0,0,0"),("SWEEP","0,1,0,0"),("PULSE","1,0,1,1"),("BURST","1,0,0,1"))
 	action={}
-	action["STOP"]="0,0,0,0"
-	action["SWEEP"]="0,1,0,0"
-	action["PULSE"]="1,0,1,1"
-	action["BURST"]="1,0,0,1"
+	for (actionname,actioncode) in actionlist:
+		action[actionname]=actioncode
+	# end for
+
+	
+	# measure mode parameters
+	measure_coupling=("AC(EXT.IN)","DC(EXT.IN)")
+	measure_mode=("M.FREQ","M.PERIOD")
 
 
-	# frequency multiplier (used for frequency indication)
+	# frequency multiplier
 	freqmultiply=(1,1,1,1/1000,1/1000000)
 
 	###############
@@ -120,6 +133,9 @@ class jds6600:
 	#####################
 	# support functions #
 	#####################
+
+	#####
+	# low-level support function
 
 	# parse data from read command
 	def __parsedata(self,cmd,data):
@@ -167,13 +183,27 @@ class jds6600:
 		# end if - elsif - else
 	# end cmd2text per channel
 
-	# send read command
+	# send read command (for 1 datapoint)
 	def __sendreadcmd(self,cmd):
 		if self.ser.is_open == True:
-			tc=":r"+cmd+"=0"+chr(0x0a)
+			tc=":r"+cmd+"=0."+chr(0x0a)
 			self.ser.write(tc.encode())
 	# end __sendreadcmd
 
+	# send read command (for n datapoint)
+	def __sendreadcmd_n(self,cmd,n):
+		if (n < 1):
+			raise ValueError(n)
+
+		# "n" in command start with 0 for 1 read-request
+		n -= 1
+
+		if self.ser.is_open == True:
+			tc=":r"+cmd+"="+str(n)+"."+chr(0x0a)
+			self.ser.write(tc.encode())
+	# end __sendreadcmd_n
+
+	# get responds of read-request and parse (1 read)
 	def __getrespondsandparse(self,cmd):
 		# get one line responds from serial device
 		ret=self.ser.readline()
@@ -181,7 +211,39 @@ class jds6600:
 		ret=str(ret,'utf-8').rstrip()
 
 		return self.__parsedata(cmd,ret)
-	# end __get responds and parse
+	# end __get responds and parse 1
+
+
+	# get responds of read-request and parsre ("n" read)
+	def __getrespondsandparse_n(self,cmd, n):
+
+		ret=[] # return value
+
+		c = int(cmd) # counter
+		for l in range(n):
+			# get one line responds from serial device
+			retserial=self.ser.readline()
+			# convert bytearray into string, then strip off terminating \n and \r
+			retserial=str(retserial,'utf-8').rstrip()
+
+
+			# get parsed data
+			# assume all data are single-value fields
+			(parseddata,)=self.__parsedata(str(c),retserial)
+
+			ret.append(parseddata)
+
+			# increase next expected to-receive data
+			c += 1
+		# end for
+
+		# return parsed data
+
+		return ret
+	# end __get responds and parse 1
+
+
+
 	
 	# send write command and wait for "ok"
 	def __sendwritecmd(self,cmd, val):
@@ -204,6 +266,27 @@ class jds6600:
 
 		#end if
 	# end __sendreadcmd
+
+
+	#####
+	# high-level support function
+
+	# set action
+	def __setaction(self,action):
+		# type check
+		if type(action) != str:
+			raise TypeError(action)
+		# end if
+
+		try:
+			cmd=self.__cmd2txt(jds6600.ACTION)
+			self.__sendwritecmd(cmd,jds6600.action[action])
+		except KeyError:
+			errmsg="Unknown Action: "+action
+			raise ValueError(errmsg)
+		# end try
+
+	# end set action
 
 	###################
 	# DEBUG functions #
@@ -251,13 +334,13 @@ class jds6600:
 
 	
 	# API version
-	def getAPIversion():
+	def getinfo_APIversion():
 		return 1
 	# end getAPIversion
 
 	# API release number
-	def getAPIrelease():
-		return "0.0.1 20180119"
+	def getinfo_APIrelease():
+		return "0.0.2 20180124"
 	# end get API release
 
 
@@ -265,7 +348,7 @@ class jds6600:
 	# Part 1: information queries
 
 	# list of waveforms
-	def getwaveformlist(self):
+	def getinfo_waveformlist(self):
 		waveformlist=[]
 
 		count=0
@@ -283,6 +366,29 @@ class jds6600:
 		return waveformlist
 	# end get waveform list
 
+
+
+	# get list of modes
+	def getinfo_modelist(self):
+		modelist=[]
+
+		lastmode=-1
+
+		# create list of modes, removing dups
+		for (modeid,modetxt) in jds6600.modes:
+			# ignore modes with modeid < 0 (not used)
+			if modeid < 0:
+				continue
+			# end if
+
+			if modeid != lastmode:
+				modelist.append((modeid,modetxt))
+				lastmode = modeid
+			# end if
+		# end for
+
+		return modelist
+	# end getinfo modelist
 
 
 	##################################
@@ -713,6 +819,395 @@ class jds6600:
 	# end getphase
 
 	
+	#######################
+	# Part 4: reading / changing mode
+	# get mode
+	def getmode(self):
+		cmd=self.__cmd2txt(jds6600.MODE)
+
+		self.__sendreadcmd(cmd)
+		(mode,)=self.__getrespondsandparse(cmd)
+		mode=int(mode)>>3
+
+		# mode is in the list "modes". mode-name "" means undefinded
+		try:
+			(modeid,modetxt)=jds6600.modes[mode]
+		except IndexError:
+			raise UnexpectedValueError(mode)
+
+		# modeid 3 is not valid and returns an id of -1
+		if modeid >= 0:
+			return modeid,modetxt
+		# end if
+
+
+		# modeif 4
+		raise UnexpectedValueError(mode)
+
+	# end getmode
+
+
+	# set mode
+	def setmode(self,mode):
+		if (type(mode) == float):
+			mode = int(mode)
+
+		# type check 
+		if (type(mode) != int) and (type(mode) != str):
+			raise TypeError(mode)
+		# end if
+
+
+
+		modeid=-1
+		# if mode is an integer, it should be between 0 and 9
+		if type(mode) == int:
+			if (mode < 0) or (mode > 9):
+				raise ValueError(mode)
+			# end if
+
+			# modeid 3 / modetxt "" does not exist
+			if mode == 3:
+				raise ValueError("mode 3 does not exist")
+			# end if
+
+			
+			# valid modeid
+			modeid = mode
+
+		else:
+			# modeid 3 / modetxt "" does not exist
+			if mode == "":
+				raise ValueError("mode 3 does not exist")
+			# end if
+
+			# mode is string -> check list
+			c=0 # counter
+			
+			for (mid,mtxt) in jds6600.modes:
+				if mode.upper() == mtxt:
+					# found it!!!
+					modeid=mid
+					break
+				# end if
+				c += 1
+			else:
+				# mode not found -> error
+				raise ValueError(mode)
+			# end for
+		# end else - if
+
+		# before changing mode, disable all actions
+		self.__setaction("STOP")
+
+		# set mode
+		cmd=self.__cmd2txt(jds6600.MODE)
+		self.__sendwritecmd(cmd,modeid)
+		
+	# end setmode
+	
+	#######################
+	# Part 5: functions common for all modes
+	def stopallactions(self):
+		# just send stop
+		self.__setaction("STOP")
+	# end stop all actions
+
+
+	#######################
+	# Part 6: "measure" mode
+
+	# get coupling parameter (measure mode)
+	def measure_getcoupling(self):
+		cmd=self.__cmd2txt(jds6600.MEASURE_COUP)
+
+		self.__sendreadcmd(cmd)
+		(coupling,)=self.__getrespondsandparse(cmd)
+		coupling=int(coupling)
+
+		try:
+			return (coupling,jds6600.measure_coupling[coupling])
+		except IndexError:
+			raise UnexpectedValueError(coupling)
+		# end try
+	# end get coupling (measure mode)
+
+	# get gate time (measure mode)
+	#  get (measure mode)
+	def measure_getgate(self):
+		cmd=self.__cmd2txt(jds6600.MEASURE_GATE)
+
+		self.__sendreadcmd(cmd)
+		(gate,)=self.__getrespondsandparse(cmd)
+		gate=int(gate)
+
+		# gate unit is 0.01 seconds
+		gate /= 100
+
+		return gate
+	# end get gate (measure mode)
+
+
+	# get Measure mode (freq or period)
+	def measure_getmode(self):
+		cmd=self.__cmd2txt(jds6600.MEASURE_MODE)
+
+		self.__sendreadcmd(cmd)
+		(mode,)=self.__getrespondsandparse(cmd)
+		mode=int(mode)
+
+		try:
+			return (mode,jds6600.measure_mode[mode])
+		except IndexError:
+			raise UnexpectedValueError(mode)
+		# end try
+	# end get mode (measure)
+
+
+	
+	# set measure coupling
+	def measure_setcoupling(self,coupling):
+		# type checks
+		if type(coupling) == float: coupling = int(coupling) 
+		if (type(coupling) != int) and (type(coupling) != str): raise TypeError(coupling)
+
+
+		if type(coupling) == int:
+			# coupling is 0 (DC) or 1 (AC)
+			if (coupling != 0) and (coupling != 1):
+				raise ValueError(coupling)
+
+			coupl=coupling
+
+		else:
+			# string based
+			
+			coupling=coupling.upper()
+			# spme shortcuts:
+			if coupling == "AC": coupling = "AC(EXT.IN)"
+			if coupling == "DC": coupling = "DC(EXT.IN)"
+
+			c=0 # counter
+			for mc in jds6600.measure_coupling:
+				if coupling == mc:
+					# found it
+					coupl = c
+					break
+				c += 1
+			else:
+				errmsg="Unknown measure coupling: "+coupling
+				raise ValueError(errmsg)
+			# end else - for
+		 # end else ) if (type is int or str?)
+
+		# set mode
+		cmd=self.__cmd2txt(jds6600.MEASURE_COUP)
+		self.__sendwritecmd(cmd,coupl)
+
+	# end set measure_coupling 
+
+	# get gate time (measure mode)
+	#  get (measure mode)
+	def measure_setgate(self, gate):
+		# check type
+		if (type(gate) != int) and (type(gate) != float): raise TypeError(gate)
+
+		# gate unit is 0.01 and is between 0 and 10
+		if (gate <= 0) or (gate > 1000):
+			raise ValueError(gate)
+
+		gate = int(gate*100+0.5)
+
+		# minimum is 0.01 second
+		if gate == 0:
+			gate = 1
+
+		# set gate
+		cmd=self.__cmd2txt(jds6600.MEASURE_GATE)
+		self.__sendwritecmd(cmd,gate)
+	# end get gate (measure mode)
+
+
+	# set measure mode
+	def measure_setmode(self,mode):
+		# type checks
+		if type(mode) == float: mode = int(mode) 
+		if (type(mode) != int) and (type(mode) != str): raise TypeError(mode)
+
+
+		if type(mode) == int:
+			# mode is 0 (M.FREQ) or 1 (M.PRERIOD)
+			if (mode != 0) and (mode != 1):
+				raise ValueError(mode)
+
+		else:
+			# string based
+
+			# make uppercase
+			mode=mode.upper()
+			
+			# spme shortcuts:
+			if mode== "FREQ": mode = "M.FREQ"
+			if mode== "PERIOD": mode = "M.PERIOD"
+
+			c=0 # counter
+			for mm in jds6600.measure_mode:
+				if mode == mm:
+					# found it
+					mode = c
+					break
+				c += 1
+			else:
+				errmsg="Unknown measure mode: "+mode
+				raise ValueError(errmsg)
+			# end else - for
+		 # end else ) if (type is int or str?)
+
+		# set mode
+		cmd=self.__cmd2txt(jds6600.MEASURE_MODE)
+		self.__sendwritecmd(cmd,mode)
+
+	# end set measure_coupling 
+
+	# get Measure freq. (lowres / Freq-mode)
+	def measure_getfreq_f(self):
+		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_FREQ_LOWRES)
+
+		self.__sendreadcmd(cmd)
+		(freq,)=self.__getrespondsandparse(cmd)
+
+		# unit is 0.1 Hz
+		return int(freq)/10
+	# end get freq-Lowres (measure)
+
+	# get Measure freq. (highes / Periode-mode)
+	def measure_getfreq_p(self):
+		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_FREQ_HIGHRES)
+
+		self.__sendreadcmd(cmd)
+		(freq,)=self.__getrespondsandparse(cmd)
+
+		# unit is 0.001 Hz
+		return int(freq)/1000
+	# end get freq-Lowres (measure)
+
+	# get Measure pulsewith +
+	def measure_getpw1(self):
+		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_PW1)
+
+		self.__sendreadcmd(cmd)
+		(period,)=self.__getrespondsandparse(cmd)
+
+		# unit is 0.01 microsecond
+		return int(period)/100
+	# end get pulsewidth -
+
+	# get Measure pulsewidth -
+	def measure_getpw0(self):
+		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_PW0)
+
+		self.__sendreadcmd(cmd)
+		(period,)=self.__getrespondsandparse(cmd)
+
+		# unit is 0.01 microsecond
+		return int(period)/100
+	# end get pulsewidth +
+
+	# get Measure total period
+	def measure_getperiod(self):
+		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_PERIOD)
+
+		self.__sendreadcmd(cmd)
+		(period,)=self.__getrespondsandparse(cmd)
+
+		# unit is 0.01 microsecond
+		return int(period)/100
+	# end get total period
+
+	# get Measure dutycycle
+	def measure_dutycycle(self):
+		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_DUTYCYCLE)
+
+		self.__sendreadcmd(cmd)
+		(dutycycle,)=self.__getrespondsandparse(cmd)
+
+		# unit is 0.1 %
+		return int(dutycycle)/10
+	# end get freq-Lowres (measure)
+
+	# get Measure unknown value 1 (related to freq, inverse-related to gatetime)
+	def measure_getu1(self):
+		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_U1)
+
+		self.__sendreadcmd(cmd)
+		(u1,)=self.__getrespondsandparse(cmd)
+
+		# unit is unknown, just return it
+		return int(u1)
+	# end get freq-Lowres (measure)
+
+	# get Measure unknown value 2 (inverse related to freq)
+	def measure_getu2(self):
+		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_U2)
+
+		self.__sendreadcmd(cmd)
+		(u2,)=self.__getrespondsandparse(cmd)
+
+		# unit is unknown, just return it
+		return int(u2)
+	# end get freq-Lowres (measure)
+
+	# get Measure unknown value 3 (nverse related to freq)
+	def measure_getu3(self):
+		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_U3)
+
+		self.__sendreadcmd(cmd)
+		(u3,)=self.__getrespondsandparse(cmd)
+
+		# unit is unknown, just return it
+		return int(u3)
+	# end get freq-Lowres (measure)
+
+
+	# get Measure all (all usefull data: freq_f, freq_p, pw1, pw0, period, dutycycle
+	def measure_getall(self):
+
+		# start with freq_q
+		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_FREQ_LOWRES)
+
+		# do query for 6 values
+		self.__sendreadcmd_n(cmd,6)
+		(freq_f, freq_p, pw1, pw0, period, dutycycle)=self.__getrespondsandparse_n(cmd,6)
+
+		# return all
+		return (int(freq_f) / 10, int(freq_p) / 1000, int(pw1)/100, int(pw0)/100, int(period)/100, int(dutycycle)/10)
+	# end get freq-Lowres (measure)
+
+
+
+
+
+	#######################
+	# Part ???: BURST
+
+	def burst_start(self):
+		mode=self.getmode()
+
+		if mode[1] != "BURST":
+			raise WrongMode()
+		# end if
+
+		# action start BURST mode
+		self.__setaction("BURST")
+	# end burst_start
+		
+
+	def burst_stop(self):
+		# just send stop
+		self.__setaction("STOP")
+	# end burst_start
+		
+
 	##################################
 
 # end class jds6600
