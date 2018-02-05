@@ -1,0 +1,181 @@
+API-calls:
+
+*** creating the object:
+from jds6800 import jds6600
+myjds6600 = jds6600("/dev/ttyUSB3")
+
+
+*** API information functions:
+getinfo_APIversion()
+	returns verion of the API (currently 0)
+
+getinfo_APIrelease()
+	returns release of the API (currently "0.0.2 2018-01-24")
+
+
+*** Device information functions:
+getinfo_devicetype()
+	returns the devicetype (MHz) of the device
+
+getinfo_serialnumber()
+	returns the serial number of the device
+
+getinfo_waveformlist()
+	returns list of all available waveforms on the device
+
+getinfo_modelist()
+	returns list of all available modes on the device
+
+
+
+
+*** Waveform and Channel Status:
+getchannelenable()
+	returns the status of the channel-enable information of both channels
+
+getwaveform(channel)
+	returns the currently selected waveform of a channel
+
+getfrequency(channel)
+	returns the current frequency of a channel
+
+getfrequency_m(channel)
+	returns the current raw frequency and multiplier information of a channel
+
+getamplitude(channel)
+	returns the amplitude of a channel
+
+getoffset(channel)
+	returns the offset of a channel
+
+getdutycycle(channel)
+	returns the dutycycle of a channel
+
+getphase()
+	returns the phase-setting of the channel-2
+
+
+*** writing device and channel information
+
+setchannelenable(channel1,channel2)
+	sets channel-enable of both channels.
+
+setwaveform(channel,waveform-id)
+setwaveform(channel,waveform-name)
+	sets waveform for a channel, using either waveform-id (numeric) or
+	waveform-name (text)
+
+setfrequency(channel,frequency,multiplier = 0)
+	sets the frequency and frequenct-multiplier of a channel
+	Maximum Frequency:
+		60 Mhz for multiplier-setting 0, 1 and 2
+		80 Khz for multiplier-setting 3
+		80 Hz for multiplier-setting 4
+	resolution:
+		0.01 Hz for multiplier-setting 0, 1 and 2
+		0.00001 Hz for multiplier-setting 3
+		0.00000001 Hz for multiplier-setting 4
+
+setamplitude(channel,amplitude)
+	sets the amplitude of a channel
+
+setoffset(channel,offset)
+	sets the offset of a channel
+
+setduttycycle(channel,dutycycle)
+	sets the dutycycle of a channel
+
+setphase(phase)
+	sets the phase of channel 2 vs. channel 1
+
+
+
+*** reading and changing mode
+
+getmode()
+	returns current mode
+
+setmode(mode-id)
+setmode(mode-name)
+	sets mode of the device, either using modeid (numeric) or mode-name
+
+stopallactions()
+	stops any action of the device
+
+
+*** measure mode
+measure_getcoupling()
+	returns measure coupling (AC or DC)
+
+measure_getgate()
+	returns measure gate time
+
+measure_getmode()
+	returns measure mode (Frequency or Periode)
+
+measure_setcoupling(coupling-id)
+measure_setcoupling(coupling-name)
+	sets measure coupling, based on coupling-id (numeric) or coupling-name
+
+measure_setgate(gatetime)
+	sets measure gate time
+
+measure_setmode(mode-id)
+measure_setmode(mode-name)
+	sets measure mode, based on mode-id (numeric) or mode-name
+
+measure_getfreq_f()
+	returns measured frequency in frequency mode (low resolution)
+
+measure_getfreq_p()
+	returns measured frequency in periode mode (high resolution)
+
+measure_getpw1()
+	returns pulse width of the signal in "1" state
+
+measure_getpw0()
+	returns pulse width of the signal in "0" state
+
+measure_getperiod()
+	returns total period of the signal
+
+measure_getdutycycle()
+	returns dutycycle of the signal
+
+measure_getall()
+	returns all usefull data (freq_f, freq_p, pw1, pw0, periode, dutycycle) in one query
+
+measure_getu1()
+	returns undefined value 1 (related to frequency, inverse-related to gatetime)
+
+measure_getu2()
+	returns undefined value 2 (inverse-related to frequency)
+
+measure_getu3()
+	returns undefined value 3 (inverse-related to frequency)
+
+
+*** counter mode
+counter_getcoupling()
+	returns counter coupling (AC or DC)
+	
+counter_setcoupling(coupling-id)
+counter_setcoupling(coupling-name)
+	sets counter coupling, based on coupling-id (numeric) or coupling-name
+
+counter_reset()
+	reset counter
+
+counter_start()
+	start counting
+
+counter_stop()
+	stop counting
+
+
+*** DEBUG
+DEBUG_readregister(register,count)
+	read register
+
+DEBUG_writeregister(register,value)
+	write register
