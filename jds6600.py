@@ -6,6 +6,8 @@
 
 # Revisions:
 # Version 0.0.1: 2018/01/19: initial release, reading basic parameters
+# version 0.0.2: 2018/01/28: added "measure" menu + support functions, documentation
+# version 0.0.3: 2018/02/07: added "counter" and "sweep" menu
 
 
 import serial
@@ -61,11 +63,23 @@ class jds6600:
 	PHASE=31
 	ACTION=32
 	MODE=33
-	MEASURE_COUP=36
-	MEASURE_GATE=37
-	MEASURE_MODE=38
-	MEASURE_DATA_FREQ_LOWRES=81
-	MEASURE_DATA_FREQ_HIGHRES=82
+
+	MEASURE_COUP=36 # coupling (AC or DC)
+	MEASURE_GATE=37 # gatetime
+	MEASURE_MODE=38 # mode (Freq or Periode)
+
+	COUNTER_COUPL=MEASURE_COUP
+	COUNTER_RESETCOUNTER=39
+
+	SWEEP_STARTFREQ=40
+	SWEEP_ENDFREQ=41
+	SWEEP_TIME=42
+	SWEEP_DIRECTION=43
+	SWEEP_MODE=44 # mode: linair or Log
+	
+	COUNTER_DATA_COUNTER=80
+	MEASURE_DATA_FREQ_LOWRES=81 # low resolution freq counter, used for mode "frequency"
+	MEASURE_DATA_FREQ_HIGHRES=82 # high resolution freq. counter, usef for mode "period". UI: valid up to 2 Khz
 	MEASURE_DATA_PW1=83
 	MEASURE_DATA_PW0=84
 	MEASURE_DATA_PERIOD=85
@@ -73,9 +87,6 @@ class jds6600:
 	MEASURE_DATA_U1=87
 	MEASURE_DATA_U2=88
 	MEASURE_DATA_U3=89
-
-	COUNTER_COUPL=26
-	COUNTER_RESETCOUNTER=37
 
 
 
@@ -99,7 +110,7 @@ class jds6600:
 	modes = ((0,"WAVE_CH1"),(0,"WAVE_CH1"),(1,"WAVE_CH2"),(1,"WAVE_CH2"),(2,"SYSTEM"),(2,"SYSTEM"),(-1,""),(-1,""),(4,"MEASURE"),(5,"COUNTER"),(6,"SWEEP_CH1"),(7,"SWEEP_CH2"),(8,"PULSE"),(9,"BURST"))
 
 	# action: register 32
-	actionlist=(("STOP","0,0,0,0"),("SWEEP","0,1,0,0"),("PULSE","1,0,1,1"),("BURST","1,0,0,1"))
+	actionlist=(("STOP","0,0,0,0"),("COUNT","1,0,0,0"),("SWEEP","0,1,0,0"),("PULSE","1,0,1,1"),("BURST","1,0,0,1"))
 	action={}
 	for (actionname,actioncode) in actionlist:
 		action[actionname]=actioncode
@@ -109,6 +120,11 @@ class jds6600:
 	# measure mode parameters
 	measure_coupling=("AC(EXT.IN)","DC(EXT.IN)")
 	measure_mode=("M.FREQ","M.PERIOD")
+
+
+	# sweep parameter
+	sweep_direction=("RISE","FALL","RISE&FALL")
+	sweep_mode=("LINEAR","LOGARITHM")
 
 
 	# frequency multiplier
@@ -306,13 +322,13 @@ class jds6600:
 		# end if
 	# end readregister
 		
-	def DEBUG_writeregister(self,register,val):
+	def DEBUG_writeregister(self,register,value):
 		if self.ser.is_open == True:
 			regtxt=self.__cmd2txt(register)
-			if type(val) == int:
-				val=str(val)
+			if type(value) == int:
+				value=str(value)
 
-			tc=":w"+regtxt+"="+val+"."+chr(0x0a)
+			tc=":w"+regtxt+"="+value+"."+chr(0x0a)
 			self.ser.write(tc.encode())
 
 			ret=self.ser.readline()
@@ -335,12 +351,12 @@ class jds6600:
 	
 	# API version
 	def getinfo_APIversion():
-		return 1
+		return 0
 	# end getAPIversion
 
 	# API release number
 	def getinfo_APIrelease():
-		return "0.0.2 20180124"
+		return "0.0.2 2018-01-24"
 	# end get API release
 
 
@@ -664,7 +680,7 @@ class jds6600:
 
 
 	# set frequency (with multiplier)
-	def setfrequency_m(self,channel,freq,multiplier):
+	def setfrequency(self,channel,freq,multiplier=0):
 		if type(channel) != int:
 			raise TypeError(channel)
 		if (type(freq) != int) and (type(freq) != float):
@@ -676,6 +692,19 @@ class jds6600:
 
 		if (freq < 0):
 			raise ValueError(freq)
+
+		# do not execute set-frequency when the device is in sweepfrequency mode
+		currentmode=self.getmode()
+
+		if (channel == 1) and (currentmode[1] == "SWEEP_CH1"):
+		# for channel 1
+			raise WrongMode()
+		elif (channel == 2) and (currentmode[1] == "SWEEP_CH2"):
+		# for channel 2
+			raise WrongMode()
+		# end elsif - if
+
+
 			
 		# freqmultier should be one of the "frequency multiply" values
 		try:
@@ -715,25 +744,12 @@ class jds6600:
 	# end set frequency (with multiplier)
 
 
-	# set frequency (no multiplier)
-	def setfrequency (self,channel,freq):
-		if type(channel) != int:
-			raise TypeError(channel)
-		if (type(freq) != int) and (type(freq) != float):
-			raise TypeError(freq)
-
-
-		self.setfrequency_m(channel,freq,0)
-	# end set frequency (no multiplier)
-
-
 	# set amplitude
 	def setamplitude(self, channel, amplitude):
 		if type(channel) != int:
 			raise TypeError(channel)
 		if (type(amplitude) != int) and (type(amplitude) != str):
 			raise TypeError(amplitude)
-
 
 
 		# amplitude is between 0 and 20 V
@@ -848,7 +864,7 @@ class jds6600:
 
 
 	# set mode
-	def setmode(self,mode):
+	def setmode(self,mode, nostop=False):
 		if (type(mode) == float):
 			mode = int(mode)
 
@@ -897,8 +913,10 @@ class jds6600:
 			# end for
 		# end else - if
 
-		# before changing mode, disable all actions
-		self.__setaction("STOP")
+		# before changing mode, disable all actions (unless explicitally asked not to do)
+		if nostop == False:
+			self.__setaction("STOP")
+		# endif
 
 		# set mode
 		cmd=self.__cmd2txt(jds6600.MODE)
@@ -1125,7 +1143,7 @@ class jds6600:
 	# end get total period
 
 	# get Measure dutycycle
-	def measure_dutycycle(self):
+	def measure_getdutycycle(self):
 		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_DUTYCYCLE)
 
 		self.__sendreadcmd(cmd)
@@ -1185,10 +1203,338 @@ class jds6600:
 
 
 
+	#######################
+	# Part 7: "Counter" mode
+
+	# counter getcoupling is the same as measure getcoupling
+	def counter_getcoupling(self):
+		return self.measure_getcoupling()
+	# end counter get coupling
+
+
+	# counter setcoupling is the same as measure setcoupling
+	def counter_setcoupling(self,coupling):
+		self.measure_setcoupling(coupling)
+	# end counter get coupling
+
+
+	# counter - reset counter
+	def counter_reset(self):
+		# write 0 to register "COUNTER_RESETCOUNTER"
+			cmd=self.__cmd2txt(jds6600.COUNTER_RESETCOUNTER)
+			self.__sendwritecmd(cmd,0)
+	# end counter reset counter
+
+	# start counter mode
+	def counter_start(self):
+		mode=self.getmode()
+
+		if mode[1] != "COUNTER":
+			raise WrongMode()
+		# end if
+
+		# action start BURST mode
+		self.__setaction("COUNT")
+	# end burst_start
+		
+
+	def counter_stop(self):
+		# just send stop
+		self.__setaction("STOP")
+	# end burst_start
+		
+
+	# get counter - counter
+	def counter_getcounter(self):
+		cmd=self.__cmd2txt(jds6600.COUNTER_DATA_COUNTER)
+
+		self.__sendreadcmd(cmd)
+		(counter,)=self.__getrespondsandparse(cmd)
+
+		# unit is  1, just return data
+		return int(counter)
+	# end get counter - counter
+
 
 
 	#######################
-	# Part ???: BURST
+	# Part 8: "Sweep" mode
+
+	# note, there are two "setmode" commands to enter "sweep" mode: "sweep_ch1' (mode 6) and "sweep_ch2" (mode 7)
+
+	def sweep_getstartfreq(self):
+		cmd=self.__cmd2txt(jds6600.SWEEP_STARTFREQ)
+
+		self.__sendreadcmd(cmd)
+		(freq,)=self.__getrespondsandparse(cmd)
+
+		# unit is  1, just return data
+		return int(freq)/100
+	# end get sweep - startfreq
+
+	def sweep_getendfreq(self):
+		cmd=self.__cmd2txt(jds6600.SWEEP_ENDFREQ)
+
+		self.__sendreadcmd(cmd)
+		(freq,)=self.__getrespondsandparse(cmd)
+
+		# unit is  1, just return data
+		return int(freq)/100
+	# end get sweep - startfreq
+
+	def sweep_gettime(self):
+		cmd=self.__cmd2txt(jds6600.SWEEP_TIME)
+
+		self.__sendreadcmd(cmd)
+		(time,)=self.__getrespondsandparse(cmd)
+
+		# unit is  1, just return data
+		return int(time)/10
+	# end get sweep - startfreq
+
+
+	# get sweep direction
+	def sweep_getdirection(self):
+		cmd=self.__cmd2txt(jds6600.SWEEP_DIRECTION)
+
+		self.__sendreadcmd(cmd)
+		(direction,)=self.__getrespondsandparse(cmd)
+		direction=int(direction)
+
+		try:
+			return (direction,jds6600.sweep_direction[direction])
+		except IndexError:
+			raise UnexpectedValueError(direction)
+		# end try
+	# end get direction (sweep)
+
+	# get sweep mode
+	def sweep_getmode(self):
+		cmd=self.__cmd2txt(jds6600.SWEEP_MODE)
+
+		self.__sendreadcmd(cmd)
+		(mode,)=self.__getrespondsandparse(cmd)
+		mode=int(mode)
+
+		try:
+			return (mode,jds6600.sweep_mode[mode])
+		except IndexError:
+			raise UnexpectedValueError(mode)
+		# end try
+	# end get mode (measure)
+
+	def sweep_setstartfreq(self, frequency):
+		if (type(frequency) != int) and (type(frequency) != float): raise TypeError(frequency)
+
+		# frequency should be between 0 and 60 MHz
+		if (frequency < 0) or (frequency > 60000000):
+			raise ValueError(frequency)
+
+		# frequency unit is 0.01 Hz
+		freq=int(frequency*100+0.5)
+
+		cmd=self.__cmd2txt(jds6600.SWEEP_STARTFREQ)
+		self.__sendwritecmd(cmd,freq)
+	# end set start freq
+
+	def sweep_setendfreq(self, frequency):
+		if (type(frequency) != int) and (type(frequency) != float): raise TypeError(frequency)
+
+		# frequency should be between 0 and 60 MHz
+		if (frequency < 0) or (frequency > 60000000):
+			raise ValueError(frequency)
+
+		# frequency unit is 0.01 Hz
+		freq=int(frequency*100+0.5)
+
+		cmd=self.__cmd2txt(jds6600.SWEEP_ENDFREQ)
+		self.__sendwritecmd(cmd,freq)
+	# end set end freq
+
+
+	def sweep_settime(self, time):
+		if (type(time) != int) and (type(time) != float): raise TypeError(time)
+
+		# time should be between 0 and 999.9 seconds
+		if (time <= 0) or (time > 999.9):
+			raise ValueError(time)
+
+		# time unit is 0.1 second
+		t=int(time*10+0.5)
+
+		cmd=self.__cmd2txt(jds6600.SWEEP_TIME)
+		self.__sendwritecmd(cmd,t)
+	# end set end freq
+
+
+	def sweep_setdirection(self, direction):
+		if (type(direction) == float): direction = int(direction)
+		if (type(direction) != int) and (type(direction) != str): raise TypeError(direction)
+
+		if type(direction) == int:
+			# mode is 0 (RISE°, 1 (FALL) or 2 (RISE&FALL)
+			if (direction < 0) or (direction > 2):
+				raise ValueError(direction)
+
+		else:
+			# string based
+
+			# make uppercase
+			direction=direction.upper()
+			
+			# spme shortcuts:
+			if direction.upper() == "RISEFALL": direction = "RISE&FALL"
+			if direction.upper() == "BOTH": direction = "RISE&FALL"
+
+			c=0 # counter
+			for sd in jds6600.sweep_direction:
+				if direction == sd:
+					# found it
+					direction = c
+					break
+				c += 1
+			else:
+				errmsg="Unknown sweep direction: "+direction
+				raise ValueError(errmsg)
+			# end else - for
+		 # end else ) if (type is int or str?)
+
+		# set mode
+		cmd=self.__cmd2txt(jds6600.SWEEP_DIRECTION)
+		self.__sendwritecmd(cmd,direction)
+	# end set direction (sweep)
+
+
+	def sweep_setmode(self, mode):
+		if (type(mode) == float): direction = int(mode)
+		if (type(mode) != int) and (type(mode) != str): raise TypeError(mode)
+
+		if type(mode) == int:
+			# mode is 0 (LINEAR) or 1 (LOGARITHM)) 
+			if (mode < 0) or (mode > 1):
+				raise ValueError(mode)
+
+		else:
+			# string based
+
+			# make uppercase
+			mode=mode.upper()
+			
+			# spme shortcuts:
+			if mode.upper() == "LIN": mode = "LINEAR"
+			if mode.upper() == "LOG": mode = "LOGARITHM"
+
+			c=0 # counter
+			for sm in jds6600.sweep_mode:
+				if mode == sm:
+					# found it
+					mode = c
+					break
+				c += 1
+			else:
+				errmsg="Unknown sweep mode: "+mode
+				raise ValueError(errmsg)
+			# end else - for
+		 # end else ) if (type is int or str?)
+
+		# set mode
+		cmd=self.__cmd2txt(jds6600.SWEEP_MODE)
+		self.__sendwritecmd(cmd,mode)
+	# end set direction (sweep)
+
+
+
+
+	# get sweep channel
+	def sweep_getchannel(self):
+		mode=self.getmode()
+
+		if mode[1] == "SWEEP_CH1":
+			return 1
+		elif mode[1] == "SWEEP_CH2":
+			return 2
+		# end if - elif
+
+		# not channel 1 or channel 2, return 0
+		return 0
+	# end sweep get_channel
+
+	# set sweep channel
+	def sweep_setchannel(self,channel):
+		if type(channel) == float: channel=int(channel)
+		if type(channel) != int: raise TypeError(channel)
+
+		# new channel should be 1 or 2
+		if (channel != 1) and (channel != 2):
+			raise ValueError(channel)
+		# end if
+
+		# get current channel (1 or 2, or 0 if not in sweep mode)
+		currentchannel=self.sweep_getchannel()
+
+		# only swich if already in sweep mode
+		if currentchannel == 0:
+			raise WrongMode()
+		#endif
+
+		# switch if the new channel is different from current channel
+		if channel != currentchannel:
+			if channel == 1:
+				self.setmode("SWEEP_CH1",nostop=True)
+			else:
+				self.setmode("SWEEP_CH2",nostop=True)
+			# end else - if
+		# end if
+	# end sweep set channel
+		
+
+	# start sweep
+	def sweep_start(self):
+		mode=self.getmode()
+
+		if (mode[1] != "SWEEP_CH1") and (mode[1] != "SWEEP_CH2"):
+			raise WrongMode()
+		# end if
+
+		# action start BURST mode
+		self.__setaction("SWEEP")
+	# end sweep_start
+		
+
+	# stop sweep
+	def sweep_stop(self):
+		# just send stop
+		self.__setaction("STOP")
+	# end sweep_start
+		
+
+
+	##################################
+
+	
+	#######################
+	# Part 9: PULSE
+
+	def pulse_start(self):
+		mode=self.getmode()
+
+		if mode[1] != "PULSE"
+			raise WrongMode()
+		# end if
+
+		# action start BURST mode
+		self.__setaction("PULSE")
+	# end burst_start
+		
+
+	def pulse_stop(self):
+		# just send stop
+		self.__setaction("STOP")
+	# end burst_start
+
+
+	#######################
+	# Part 10: BURST
 
 	def burst_start(self):
 		mode=self.getmode()

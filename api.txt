@@ -116,6 +116,10 @@ measure_getmode()
 measure_setcoupling(coupling-id)
 measure_setcoupling(coupling-name)
 	sets measure coupling, based on coupling-id (numeric) or coupling-name
+Note:
+"AC" is "AC(EXT.IN)"
+"DC" is "DC(EXT.IN)"
+
 
 measure_setgate(gatetime)
 	sets measure gate time
@@ -123,6 +127,10 @@ measure_setgate(gatetime)
 measure_setmode(mode-id)
 measure_setmode(mode-name)
 	sets measure mode, based on mode-id (numeric) or mode-name
+Note:
+"FREQ"    is "M.FREQ"
+"PERIODE" is "M.PERIOD"
+
 
 measure_getfreq_f()
 	returns measured frequency in frequency mode (low resolution)
@@ -162,6 +170,9 @@ counter_getcoupling()
 counter_setcoupling(coupling-id)
 counter_setcoupling(coupling-name)
 	sets counter coupling, based on coupling-id (numeric) or coupling-name
+Note:
+"AC" is "AC(EXT.IN)"
+"DC" is "DC(EXT.IN)"
 
 counter_reset()
 	reset counter
@@ -171,6 +182,62 @@ counter_start()
 
 counter_stop()
 	stop counting
+
+
+*** sweep mode
+sweep_getstartfreq()
+	returns sweep start frequency
+
+sweep_getendfreq()
+	returns sweep end frequency
+
+sweep_gettime()
+	returns sweep time
+
+sweep_getdirection()
+	returns sweep direction (rise, fall or rize&fall)
+
+sweep_getmode()
+	returns sweep_mode (Linear or Logarithm)
+
+sweep_setstartfreq(frequency)
+	sets sweep start frequency
+
+sweep_setendfreq(frequency)
+	sets sweep end frequency
+
+sweep_settime(time)
+	sets sweep time
+
+sweep_setdirection(direction-id)
+sweep_setdirection(direction-name)
+	sets sweep direction, either numeric or text
+note:
+"BOTH" = "RISE&FALL"
+"RISEFALL" = "RISE&FALL"
+
+sweep_setmode(mode-id)
+sweep_setmode(mode-name)
+	sers sweep mode, either numeric or text
+note:
+"LIN" = "LINEAR"
+"LOG" = "LOGARITHM"
+
+
+sweep_getchannel()
+	returns sweep channel
+
+sweep_setchannel(channel)
+	sets sweep channel
+note:
+changing channel using "sweep_setchannel" while running does NOT stop the sweep
+changing channel using "setmode" chile running WILL stop the sweep
+
+sweep_start()
+	start frequency sweep
+
+sweep_stop()
+	stop frequency sweep
 
 
 *** DEBUG
