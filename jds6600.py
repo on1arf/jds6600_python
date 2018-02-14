@@ -1,4 +1,4 @@
-# jds6600.py
+#w jds6600.py
 # library to remote-control a JDS6600 signal generator
 
 # Kristoff Bonne (C)
@@ -49,6 +49,7 @@ class jds6600:
 	# commands
 	DEVICETYPE=0
 	SERIALNUMBER=1
+
 	CHANNELENABLE=20
 	WAVEFORM1=21
 	WAVEFORM2=22
@@ -61,6 +62,7 @@ class jds6600:
 	DUTYCYCLE1=29
 	DUTYCYCLE2=30
 	PHASE=31
+
 	ACTION=32
 	MODE=33
 
@@ -76,8 +78,17 @@ class jds6600:
 	SWEEP_TIME=42
 	SWEEP_DIRECTION=43
 	SWEEP_MODE=44 # mode: linair or Log
+
+	PULSE_PULSEWIDTH=45
+	PULSE_PERIOD=46
+	PULSE_OFFSET=47
+	PULSE_AMPLITUDE=48
+
+	BURST_NUMBER=49
+	BURST_MODE=50
 	
 	COUNTER_DATA_COUNTER=80
+
 	MEASURE_DATA_FREQ_LOWRES=81 # low resolution freq counter, used for mode "frequency"
 	MEASURE_DATA_FREQ_HIGHRES=82 # high resolution freq. counter, usef for mode "period". UI: valid up to 2 Khz
 	MEASURE_DATA_PW1=83
@@ -93,42 +104,45 @@ class jds6600:
 
 	# waveforms: registers 21 (ch1) and 22 (ch2))
 	# 0 to 16: predefined waveforms
-	wave=("SINE","SQUARE","PULSE","TRIANGLE","PARTIALSINE","CMOS","DC","HALF-WAVE","FULL-WAVE","POS-LADDER","NEG-LADDER", "NOISE", "EXP-RIZE","EXP-DECAY","MULTI-TONE","SINC","LORENZ")
+	__wave=("SINE","SQUARE","PULSE","TRIANGLE","PARTIALSINE","CMOS","DC","HALF-WAVE","FULL-WAVE","POS-LADDER","NEG-LADDER", "NOISE", "EXP-RIZE","EXP-DECAY","MULTI-TONE","SINC","LORENZ")
 	# 101 to 160: arbitary waveforms
-	awave=[]
-	for a in range(1,61):
-		if a < 9:
-			awave.append("ARBITRARY0"+str(a))
-		else:
-			awave.append("ARBITRARY"+str(a))
+	__awave=[]
+	for a in range(1,10):
+		__awave.append("ARBITRARY0"+str(a))
+	for a in range(10,61):
+		__awave.append("ARBITRARY"+str(a))
 	# end for
 		
 
 	# modes: register 33
 	# note: use lowest 4 bits for wrting
 	# note: use highest 4 bits for reading
-	modes = ((0,"WAVE_CH1"),(0,"WAVE_CH1"),(1,"WAVE_CH2"),(1,"WAVE_CH2"),(2,"SYSTEM"),(2,"SYSTEM"),(-1,""),(-1,""),(4,"MEASURE"),(5,"COUNTER"),(6,"SWEEP_CH1"),(7,"SWEEP_CH2"),(8,"PULSE"),(9,"BURST"))
+	__modes = ((0,"WAVE_CH1"),(0,"WAVE_CH1"),(1,"WAVE_CH2"),(1,"WAVE_CH2"),(2,"SYSTEM"),(2,"SYSTEM"),(-1,""),(-1,""),(4,"MEASURE"),(5,"COUNTER"),(6,"SWEEP_CH1"),(7,"SWEEP_CH2"),(8,"PULSE"),(9,"BURST"))
 
 	# action: register 32
-	actionlist=(("STOP","0,0,0,0"),("COUNT","1,0,0,0"),("SWEEP","0,1,0,0"),("PULSE","1,0,1,1"),("BURST","1,0,0,1"))
-	action={}
-	for (actionname,actioncode) in actionlist:
-		action[actionname]=actioncode
+	__actionlist=(("STOP","0,0,0,0"),("COUNT","1,0,0,0"),("SWEEP","0,1,0,0"),("PULSE","1,0,1,1"),("BURST","1,0,0,1"))
+	__action={}
+	for (actionname,actioncode) in __actionlist:
+		__action[actionname]=actioncode
 	# end for
 
 	
 	# measure mode parameters
-	measure_coupling=("AC(EXT.IN)","DC(EXT.IN)")
-	measure_mode=("M.FREQ","M.PERIOD")
+	__measure_coupling=("AC(EXT.IN)","DC(EXT.IN)")
+	__measure_mode=("M.FREQ","M.PERIOD")
 
 
-	# sweep parameter
-	sweep_direction=("RISE","FALL","RISE&FALL")
-	sweep_mode=("LINEAR","LOGARITHM")
+	# sweep parameters
+	__sweep_direction=("RISE","FALL","RISE&FALL")
+	__sweep_mode=("LINEAR","LOGARITHM")
 
+
+	# burst parameters
+	__burst_mode=["MANUAL TRIG.","CH2 TRIG.","EXT.TRIG(AC)","EXT.TRIG(DC)"]
 
 	# frequency multiplier
-	freqmultiply=(1,1,1,1/1000,1/1000000)
+	__freqmultiply=(1,1,1,1/1000,1/1000000)
+
 
 	###############
 	# oonstructor #
@@ -171,7 +185,8 @@ class jds6600:
 		# check if returned data matches cmd that was send
 		if cmd != None:
 			if one != ":r"+cmd:
-				raise FormatError("Parsing Return data: send/received cmd mismatch: "+data)
+				errmsg="Parsing Return data: send/received cmd mismatch: "+data+" / expected :r"+cmd
+				raise FormatError(errmsg)
 			# end if
 		# end if
 
@@ -181,33 +196,14 @@ class jds6600:
 
 	# command in textual form
 	def __cmd2txt(self,cmd):
-		if cmd < 10:
-			return "0"+str(cmd)
-		else:
-			return str(cmd)
-		# end if
+		return "0"+str(cmd) if int(cmd) < 10 else str(cmd)
 	# end cmd2txt
 
-	# create command in textual form for a particular channel, 
-	def __cmd2txt_ch(self,ch,cmd1,cmd2):
-		if ch == 1:
-			return self.__cmd2txt(cmd1)
-		elif ch == 2:
-			return self.__cmd2txt(cmd2)
-		else:
-			raise UnknownChannelError(channel)
-		# end if - elsif - else
-	# end cmd2text per channel
-
-	# send read command (for 1 datapoint)
-	def __sendreadcmd(self,cmd):
-		if self.ser.is_open == True:
-			tc=":r"+cmd+"=0."+chr(0x0a)
-			self.ser.write(tc.encode())
-	# end __sendreadcmd
-
 	# send read command (for n datapoint)
-	def __sendreadcmd_n(self,cmd,n):
+	def __sendreadcmd(self,cmd,n=1):
+		if type(n) != int: raise TypeError(n)
+
+		cmdtxt=self.__cmd2txt(cmd)
 		if (n < 1):
 			raise ValueError(n)
 
@@ -215,57 +211,76 @@ class jds6600:
 		n -= 1
 
 		if self.ser.is_open == True:
-			tc=":r"+cmd+"="+str(n)+"."+chr(0x0a)
+			tc=":r"+cmdtxt+"="+str(n)+"."+chr(0x0a)
 			self.ser.write(tc.encode())
-	# end __sendreadcmd_n
-
-	# get responds of read-request and parse (1 read)
-	def __getrespondsandparse(self,cmd):
-		# get one line responds from serial device
-		ret=self.ser.readline()
-		# convert bytearray into string, then strip off terminating \n and \r
-		ret=str(ret,'utf-8').rstrip()
-
-		return self.__parsedata(cmd,ret)
-	# end __get responds and parse 1
+	# end __sendreadcmd
 
 
-	# get responds of read-request and parsre ("n" read)
-	def __getrespondsandparse_n(self,cmd, n):
+
+	# get responds of read-request and parse ("n" reads)
+	def __getrespondsandparse(self,cmd, n=1):
 
 		ret=[] # return value
 
 		c = int(cmd) # counter
+		c_expect=self.__cmd2txt(c)
 		for l in range(n):
 			# get one line responds from serial device
 			retserial=self.ser.readline()
 			# convert bytearray into string, then strip off terminating \n and \r
 			retserial=str(retserial,'utf-8').rstrip()
 
-
 			# get parsed data
 			# assume all data are single-value fields
-			(parseddata,)=self.__parsedata(str(c),retserial)
+			parseddata=self.__parsedata(c_expect,retserial)
 
-			ret.append(parseddata)
+			# we receive a list of strings, all containing numeric (integer) values
+
+			if len(parseddata) == 1:
+			# if list with one value, return that value (converted to integer)
+				ret.append(int(parseddata[0]))
+			else:
+			# if list with multiple values, convert all strings to integers and return list
+				retlist=[]
+				for data in parseddata:
+					retlist.append(int(data))
+				# end for
+				ret.append(retlist)
+			# end else - if
 
 			# increase next expected to-receive data
 			c += 1
+			c_expect=self.__cmd2txt(c)
 		# end for
 
 		# return parsed data
-
-		return ret
+		# if only one element, return that element
+		# if multiple elements, return list
+		return ret[0] if n == 1 else ret
 	# end __get responds and parse 1
 
 
+	# get data
+	def __getdata(self,reg, n=1):
+		if type(reg) != int: raise TypeError(reg)
+		if type(n) != int: raise TypeError(n)
+
+		# send "read" commandline for "n" lines to receive
+		self.__sendreadcmd(reg,n)
+
+		return self.__getrespondsandparse(reg,n)
+	# end __getdata 1
 
 	
 	# send write command and wait for "ok"
 	def __sendwritecmd(self,cmd, val):
+		# add a "0" to the command if it one single character
+		cmd=self.__cmd2txt(cmd)
+
 		if self.ser.is_open == True:
-			if type(val) == int:
-				val = str(val)
+			if type(val) == int: val = str(val)
+			if type(val) != str: raise TypeError(val)
+
 			tc=":w"+cmd+"="+val+"."+chr(0x0a)
 			self.ser.write(tc.encode())
 
@@ -281,7 +296,7 @@ class jds6600:
 			# end if
 
 		#end if
-	# end __sendreadcmd
+	# end __sendwritecmd
 
 
 	#####
@@ -295,8 +310,7 @@ class jds6600:
 		# end if
 
 		try:
-			cmd=self.__cmd2txt(jds6600.ACTION)
-			self.__sendwritecmd(cmd,jds6600.action[action])
+			self.__sendwritecmd(jds6600.ACTION,jds6600.__action[action])
 		except KeyError:
 			errmsg="Unknown Action: "+action
 			raise ValueError(errmsg)
@@ -350,13 +364,13 @@ class jds6600:
 
 	
 	# API version
-	def getinfo_APIversion():
+	def getAPIinfo_version():
 		return 0
 	# end getAPIversion
 
 	# API release number
-	def getinfo_APIrelease():
-		return "0.0.2 2018-01-24"
+	def getAPIinfo_release():
+		return "0.0.4 2018-02-xx"
 	# end get API release
 
 
@@ -365,23 +379,13 @@ class jds6600:
 
 	# list of waveforms
 	def getinfo_waveformlist(self):
-		waveformlist=[]
-
-		count=0
-		for w in jds6600.wave:
-			waveformlist.append((count,w))
-			count += 1
-		# end for
-
-		count=101
-		for a in jds6600.awave:
-			waveformlist.append((count,a))
-			count += 1
+		waveformlist=list(enumerate(jds6600.__wave))
+		for aw in (enumerate(jds6600.__awave,101)):
+			waveformlist.append(aw)
 		# end for
 
 		return waveformlist
 	# end get waveform list
-
 
 
 	# get list of modes
@@ -391,8 +395,8 @@ class jds6600:
 		lastmode=-1
 
 		# create list of modes, removing dups
-		for (modeid,modetxt) in jds6600.modes:
-			# ignore modes with modeid < 0 (not used)
+		for (modeid,modetxt) in jds6600.__modes:
+			# ignore modes with modeid < 0 (unused mode)
 			if modeid < 0:
 				continue
 			# end if
@@ -411,83 +415,55 @@ class jds6600:
 	# Part 2: reading basic parameters
 
 	# get device type
-	def getdevicetype(self):
-		cmd=self.__cmd2txt(jds6600.DEVICETYPE)
-		self.__sendreadcmd(cmd)
-
-		(devicetype,)=self.__getrespondsandparse(cmd)
-		return int(devicetype)
+	def getinfo_devicetype(self):
+		return self.__getdata(jds6600.DEVICETYPE)
 	# end get device type
 
 
 	# get serial number
-	def getserialnumber(self):
-		cmd=self.__cmd2txt(jds6600.SERIALNUMBER)
-		self.__sendreadcmd(cmd)
-
-		(sn,)=self.__getrespondsandparse(cmd)
-		return int(sn)
+	def getinfo_serialnumber(self):
+		return self.__getdata(jds6600.SERIALNUMBER)
 	# end get serial number
 
 
 	# get channel enable status
 	def getchannelenable(self):
-		cmd=self.__cmd2txt(jds6600.CHANNELENABLE)
-		self.__sendreadcmd(cmd)
-
-		(ch1,ch2)=self.__getrespondsandparse(cmd)
-		if ch1 == "1":
-			ch1=True
-		else:
-			ch1=False
-
-		if ch2 == "1":
-			ch2=True
-		else:
-			ch2=False
-
-		return(ch1,ch2)
+		(ch1,ch2)=self.__getdata(jds6600.CHANNELENABLE)
+		return True if ch1 == 1 else False, True if ch2 == 1 else False
 	# end get channel enable status
 
 	# get waveform
 	def getwaveform(self, channel):
-		if type(channel) != int:
-			raise TypeError(channel)
+		if type(channel) != int: raise TypeError(channel)
+		if (channel != 1) and (channel != 2): raise ValueError(channel)
 
-		cmd=self.__cmd2txt_ch(channel,jds6600.WAVEFORM1,jds6600.WAVEFORM2)
+		#WAVEFORM for channel 2 is WAVEFORM1 + 1
+		waveform=self.__getdata(jds6600.WAVEFORM1+channel-1)
 
-		self.__sendreadcmd(cmd)
-		(waveform,)=self.__getrespondsandparse(cmd)
-		waveform=int(waveform)
-
-		# waveform 0 to 16 are in "wave" list, 101 to 160 are in awave
+		# waveform 0 to 16 are in "wave" list, 101 to 160 are in __awave
 		try:
-			return (waveform,jds6600.wave[waveform])
+			return (waveform,jds6600.__wave[waveform])
 		except IndexError:
 			pass
 
 		try:
-			return (waveform,jds6600.awave[waveform-101])
+			return (waveform,jds6600.__awave[waveform-101])
 		except IndexError:
 			raise UnexpectedValueError(waveform)
 	# end getwaveform
 
 	# get frequency _with multiplier
 	def getfrequency_m(self,channel):
-		if type(channel) != int:
-			raise TypeError(channel)
+		if type(channel) != int: raise TypeError(channel)
+		if (channel != 1) and (channel != 2): raise ValueError(channel)
 
-		cmd=self.__cmd2txt_ch(channel,jds6600.FREQUENCY1,jds6600.FREQUENCY2)
-
-		self.__sendreadcmd(cmd)
-		(f1,f2)=self.__getrespondsandparse(cmd)
-		(f1,f2)=(int(f1),int(f2))
+		(f1,f2)=self.__getdata(jds6600.FREQUENCY1+channel-1)
 
 		# parse multiplier (value after ",")
 		# 0=Hz, 1=KHz,2=MHz, 3=mHz,4=uHz)
 		# note f1 is frequency / 100
 		try:
-			return((f1/100*self.freqmultiply[f2],f2))
+			return((f1/100*self.__freqmultiply[f2],f2))
 		except IndexError:
 			# unexptected value of frequency multiplier
 			raise UnexpectedValueError(f2)
@@ -496,14 +472,10 @@ class jds6600:
 
 	# get frequency _no multiplier information
 	def getfrequency(self,channel):
-		if type(channel) != int:
-			raise TypeError(channel)
+		if type(channel) != int: raise TypeError(channel)
+		if (channel != 1) and (channel != 2): raise ValueError(channel)
 
-		cmd=self.__cmd2txt_ch(channel,jds6600.FREQUENCY1,jds6600.FREQUENCY2)
-
-		self.__sendreadcmd(cmd)
-		(f1,f2)=self.__getrespondsandparse(cmd)
-		(f1,f2)=(int(f1),int(f2))
+		(f1,f2)=self.__getdata(jds6600.FREQUENCY1+channel-1)
 
 		# parse multiplier (value after ","): 0=Hz, 1=KHz,2=MHz, 3=mHz,4=uHz)
 		# note1: frequency unit is Hz / 100
@@ -512,7 +484,7 @@ class jds6600:
 		#							the same way as for multiplier 0 (Hz)
 		#			mulitpliers 3 (mHZ) and 4 (uHz) do change the calculation of the frequency
 		try:
-			return(f1/100*self.freqmultiply[f2])
+			return(f1/100*self.__freqmultiply[f2])
 		except IndexError:
 			# unexptected value of frequency multiplier
 			raise UnexpectedValueError(f2)
@@ -522,14 +494,10 @@ class jds6600:
 
 	# get amplitude
 	def getamplitude(self, channel):
-		if type(channel) != int:
-			raise TypeError(channel)
+		if type(channel) != int: raise TypeError(channel)
+		if (channel != 1) and (channel != 2): raise ValueError(channel)
 
-		cmd=self.__cmd2txt_ch(channel,jds6600.AMPLITUDE1,jds6600.AMPLITUDE2)
-
-		self.__sendreadcmd(cmd)
-		(amplitude,)=self.__getrespondsandparse(cmd)
-		amplitude=int(amplitude)
+		amplitude=self.__getdata(jds6600.AMPLITUDE1+channel-1)
 
 		# amplitude is mV -> so divide by 1000
 		return amplitude/1000
@@ -538,14 +506,10 @@ class jds6600:
 	
 	# get offset
 	def getoffset(self, channel):
-		if type(channel) != int:
-			raise TypeError(channel)
+		if type(channel) != int: raise TypeError(channel)
+		if (channel != 1) and (channel != 2): raise ValueError(channel)
 
-		cmd=self.__cmd2txt_ch(channel,jds6600.OFFSET1,jds6600.OFFSET2)
-
-		self.__sendreadcmd(cmd)
-		(offset,)=self.__getrespondsandparse(cmd)
-		offset=int(offset)
+		offset=self.__getdata(jds6600.OFFSET1+channel-1)
 
 		# offset unit is 10 mV, and then add 1000
 		return (offset-1000)/100
@@ -553,14 +517,10 @@ class jds6600:
 
 	# get dutcycle
 	def getdutycycle(self, channel):
-		if type(channel) != int:
-			raise TypeError(channel)
+		if type(channel) != int: raise TypeError(channel)
+		if (channel != 1) and (channel != 2): raise ValueError(channel)
 
-		cmd=self.__cmd2txt_ch(channel,jds6600.DUTYCYCLE1,jds6600.DUTYCYCLE2)
-
-		self.__sendreadcmd(cmd)
-		(dutycycle,)=self.__getrespondsandparse(cmd)
-		dutycycle=int(dutycycle)
+		dutycycle=self.__getdata(jds6600.DUTYCYCLE1+channel-1)
 
 		# dutycycle unit is 0.1 %, so divide by 10
 		return dutycycle/10
@@ -569,11 +529,7 @@ class jds6600:
 	
 	# get phase
 	def getphase(self):
-		cmd=self.__cmd2txt(jds6600.PHASE)
-
-		self.__sendreadcmd(cmd)
-		(phase,)=self.__getrespondsandparse(cmd)
-		phase=int(phase)
+		phase=self.__getdata(jds6600.PHASE)
 
 		# phase unit is 0.1 degrees, so divide by 10
 		return phase/10
@@ -586,36 +542,26 @@ class jds6600:
 
 	# set channel enable
 	def setchannelenable(self,ch1,ch2):
-		if type(ch1) != bool:
-			raise TypeError(ch1)
-		if type(ch2) != bool:
-			raise TypeError(ch1)
+		if type(ch1) != bool: raise TypeError(ch1)
+		if type(ch2) != bool: raise TypeError(ch1)
 
-		enable=""
 		# channel 1
-		if ch1 == True:
-			enable += "1"
-		else:
-			enable += "0"
-		# end else - if
+		if ch1 == True: enable = "1"
+		else: enable = "0" # end else - if
 
-		if ch2 == True:
-			enable += ",1"
-		else:
-			enable += ",0"
-		# end else - if
+		if ch2 == True: enable += ",1"
+		else: enable += ",0" # end else - if
 
 		# write command
-		cmd=self.__cmd2txt(jds6600.CHANNELENABLE)
-		self.__sendwritecmd(cmd,enable)
+		self.__sendwritecmd(jds6600.CHANNELENABLE,enable)
 	# end set channel enable
 
 	# set waveform
 	def setwaveform(self,channel,waveform):
-		if type(channel) != int:
-			raise TypeError(channel)
-		if (type(waveform) != int) and (type(waveform) != str):
-			raise TypeError(waveform)
+		if type(channel) != int: raise TypeError(channel)
+		if (type(waveform) != int) and (type(waveform) != str): raise TypeError(waveform)
+
+		if (channel != 1) and (channel != 2): raise ValueError(channel)
 
 		# wzveform can be integer or string
 		w=None
@@ -624,14 +570,14 @@ class jds6600:
 			# waveform is an integer
 			if waveform < 101:
 				try:
-					jds6600.wave[waveform]
+					jds6600.__wave[waveform]
 				except IndexError:
 					raise ValueError(waveform)
 				# end try
 
 			else:
 				try:
-					jds6600.awave[waveform-101]
+					jds6600.__awave[waveform-101]
 				except IndexError:
 					raise ValueError(waveform)
 				# end try
@@ -643,51 +589,47 @@ class jds6600:
 		else:
 			# waveform is a string
 
-			# check all waeform descriptions in wave and awave
-			count=0
-			for l in jds6600.wave:
-				if waveform.upper() == l:
-					# requested waveformname matches name in "wave" list
-					w=count
-					break
-				# end if
-				count += 1
-			# end for
+			# make everything uppercase
+			waveform=waveform.upper()
+			# check all waveform descriptions in wave and __awave
+			# w is already initialised as "none" above
 
-			# not in "wave" list -> check "awave" list
+			try:
+				# try in "wave" list
+				w=jds6600.__wave.index(waveform)
+			except ValueError:
+				pass
+
 			if w == None:
-				count=101 # waveform number is index-in-awave list + 101
-				for l in jds6600.awave:
-					if waveform.upper() == l:
-						# requested waveformname matches name in "awave" list
-						w=count # waveform number is index-in-awave list + 101
-						break
-					# end if
-					count += 1
-				# end for
+				#if not found in "wave", try the "awave" list
+				try:
+					w=jds6600.__awave.index(waveform)+101 # arbitrary waveforms state are index 101
+				except ValueError:
+					pass
+				# end try
 			# end if
 
-			# still not found?, -> error
 			if w == None:
-				raise ValueError(waveform)
-		# ens else - elsif - if
+				# not in "wave" and "awave" error
+				errmsg="Unknown waveform "+waveform
+				raise ValueError (errmsg)
+			# end if
+
+		# ens else - if
 
 
-		cmd=self.__cmd2txt_ch(channel,jds6600.WAVEFORM1,jds6600.WAVEFORM2)
-		self.__sendwritecmd(cmd,w)
+		self.__sendwritecmd(jds6600.WAVEFORM1+channel-1,w)
 
 	# end function set waveform
 
 
 	# set frequency (with multiplier)
 	def setfrequency(self,channel,freq,multiplier=0):
-		if type(channel) != int:
-			raise TypeError(channel)
-		if (type(freq) != int) and (type(freq) != float):
-			raise TypeError(freq)
-		if type(multiplier) != int:
-			raise TypeError(multiplier)
+		if type(channel) != int: raise TypeError(channel)
+		if (type(freq) != int) and (type(freq) != float): raise TypeError(freq)
+		if type(multiplier) != int: raise TypeError(multiplier)
 
+		if (channel != 1) and (channel != 2): raise ValueError(channel)
 
 
 		if (freq < 0):
@@ -708,7 +650,7 @@ class jds6600:
 			
 		# freqmultier should be one of the "frequency multiply" values
 		try:
-			self.freqmultiply[multiplier]
+			self.__freqmultiply[multiplier]
 		except IndexError:
 			raise ValueError[multiplier]
 
@@ -720,59 +662,56 @@ class jds6600:
 
 		if multiplier < 3:
 			if freq > 60000000:
-				raise ValueError(freq)
+				errmsg="Maximum frequency using multiplier {} is 60 MHz.".format(multiplier)
+				raise ValueError(errmsg)
 			# end if
 		elif multiplier == 3:
 			if freq > 80000:
-				raise ValueError(freq)
+				errmsg="Maximum frequency using multiplier 3 is 80 KHz."
+				raise ValueError(errmsg)
 			# end if
 		else: # multiplier == 4
 			if freq > 80:
-				raise ValueError(freq)
+				errmsg="Maximum frequency using multiplier 4 is 80 Hz."
+				raise ValueError(errmsg)
 			# end if
 		# end else - elsif - if
 
 				
 
 		# round to nearest 0.01 value
-		freq=int(freq*100/jds6600.freqmultiply[multiplier]+0.5)
-		
-		cmd=self.__cmd2txt_ch(channel,jds6600.FREQUENCY1,jds6600.FREQUENCY2)
-
+		freq=int(round(freq*100/jds6600.__freqmultiply[multiplier]))
 		value=str(freq)+","+str(multiplier)
-		self.__sendwritecmd(cmd,value)
+
+		self.__sendwritecmd(jds6600.FREQUENCY1+channel-1,value)
 	# end set frequency (with multiplier)
 
 
 	# set amplitude
 	def setamplitude(self, channel, amplitude):
-		if type(channel) != int:
-			raise TypeError(channel)
-		if (type(amplitude) != int) and (type(amplitude) != str):
-			raise TypeError(amplitude)
+		if type(channel) != int: raise TypeError(channel)
+		if (type(amplitude) != int) and (type(amplitude) != float): raise TypeError(amplitude)
 
+		if (channel != 1) and (channel != 2): raise ValueError(channel)
 
 		# amplitude is between 0 and 20 V
 		if (amplitude < 0) or (amplitude > 20):
 			raise ValueError(amplitude)
 
 		# round to nearest 0.001 value
-		amplitude=int(amplitude*1000+0.5)
+		amplitude=int(round(amplitude*1000))
 		
-		cmd=self.__cmd2txt_ch(channel,jds6600.AMPLITUDE1,jds6600.AMPLITUDE2)
-
-		self.__sendwritecmd(cmd,amplitude)
+		self.__sendwritecmd(jds6600.AMPLITUDE1+channel-1,amplitude)
 	# end setamplitude
 	
 	
 
 	# set offset
 	def setoffset(self, channel, offset):
-		if type(channel) != int:
-			raise TypeError(channel)
-		if (type(offset) != int) and (type(offset) != str):
-			raise TypeError(offset)
+		if type(channel) != int: raise TypeError(channel)
+		if (type(offset) != int) and (type(offset) != float): raise TypeError(offset)
 
+		if (channel != 1) and (channel != 2): raise ValueError(channel)
 
 		# offset is between -10 and +10 volt
 		if (offset < -10) or (offset > 10):
@@ -783,40 +722,32 @@ class jds6600:
 		# the actual offset seams to be lmited to -2.5 to +2.5
 
 		# round to nearest 0.01 value
-		if offset > 0:
-			offset=int(offset*100+0.5)+1000
-		else:
-			offset=int(offset*100-0.5)+1000
+		offset=int(round(offset*100))+1000
 
-		cmd=self.__cmd2txt_ch(channel,jds6600.OFFSET1,jds6600.OFFSET2)
-
-		self.__sendwritecmd(cmd,offset)
+		self.__sendwritecmd(jds6600.OFFSET1+channel-1, offset)
 	# end set offset
 
 	# set dutcycle
 	def setdutycycle(self, channel, dutycycle):
-		if type(channel) != int:
-			raise TypeError(channel)
-		if (type(dutycycle) != int) and (type(dutycycle) != str):
-			raise TypeError(dutycycle)
+		if type(channel) != int: raise TypeError(channel)
+		if (type(dutycycle) != int) and (type(dutycycle) != float): raise TypeError(dutycycle)
 
+		if (channel != 1) and (channel != 2): raise ValueError(channel)
 
 		# dutycycle is between 0 and 100 %
 		if (dutycycle < 0) or (dutycycle > 100):
 			raise ValueError(dutycycle)
 
 		# round to nearest 0.1 value
-		dutycycle=int(dutycycle*10+0.5)
+		dutycycle=int(round(dutycycle*10))
 
-		cmd=self.__cmd2txt_ch(channel,jds6600.DUTYCYCLE1,jds6600.DUTYCYCLE2)
-
-		self.__sendwritecmd(cmd,dutycycle)
+		self.__sendwritecmd(jds6600.DUTYCYCLE1+channel-1,dutycycle)
 	# end set dutycycle
 
 	
 	# set phase
 	def setphase(self,phase):
-		if (type(phase) != int) and (type(phase) != str):
+		if (type(phase) != int) and (type(phase) != float):
 			raise TypeError(phase)
 
 		# hase is between -360 and 360
@@ -827,11 +758,9 @@ class jds6600:
 			phase += 3600
 
 		# round to nearest 0.1 value
-		phase=int(phase*10+0.5)
+		phase=int(round(phase*10))
 
-		cmd=self.__cmd2txt(jds6600.PHASE)
-
-		self.__sendwritecmd(cmd,phase)
+		self.__sendwritecmd(jds6600.PHASE,phase)
 	# end getphase
 
 	
@@ -839,15 +768,14 @@ class jds6600:
 	# Part 4: reading / changing mode
 	# get mode
 	def getmode(self):
-		cmd=self.__cmd2txt(jds6600.MODE)
+		mode=self.__getdata(jds6600.MODE)
 
-		self.__sendreadcmd(cmd)
-		(mode,)=self.__getrespondsandparse(cmd)
-		mode=int(mode)>>3
 
 		# mode is in the list "modes". mode-name "" means undefinded
+		mode=int(mode)>>3
+
 		try:
-			(modeid,modetxt)=jds6600.modes[mode]
+			(modeid,modetxt)=jds6600.__modes[mode]
 		except IndexError:
 			raise UnexpectedValueError(mode)
 
@@ -868,11 +796,7 @@ class jds6600:
 		if (type(mode) == float):
 			mode = int(mode)
 
-		# type check 
-		if (type(mode) != int) and (type(mode) != str):
-			raise TypeError(mode)
-		# end if
-
+		if (type(mode) != int) and (type(mode) != str): raise TypeError(mode)
 
 
 		modeid=-1
@@ -898,15 +822,13 @@ class jds6600:
 			# end if
 
 			# mode is string -> check list
-			c=0 # counter
-			
-			for (mid,mtxt) in jds6600.modes:
+			# (note: the modes-list is not enumerated like the other lists, so an "array.index("text")" search is not possible
+			for mid,mtxt in jds6600.__modes:
 				if mode.upper() == mtxt:
 					# found it!!!
 					modeid=mid
 					break
 				# end if
-				c += 1
 			else:
 				# mode not found -> error
 				raise ValueError(mode)
@@ -919,8 +841,12 @@ class jds6600:
 		# endif
 
 		# set mode
-		cmd=self.__cmd2txt(jds6600.MODE)
-		self.__sendwritecmd(cmd,modeid)
+		self.__sendwritecmd(jds6600.MODE,modeid)
+
+		# if new mode is "burst", reset burst counter
+		if modeid == 9:
+			self.burst_resetcounter()
+		# end if
 		
 	# end setmode
 	
@@ -937,14 +863,10 @@ class jds6600:
 
 	# get coupling parameter (measure mode)
 	def measure_getcoupling(self):
-		cmd=self.__cmd2txt(jds6600.MEASURE_COUP)
-
-		self.__sendreadcmd(cmd)
-		(coupling,)=self.__getrespondsandparse(cmd)
-		coupling=int(coupling)
+		coupling=self.__getdata(jds6600.MEASURE_COUP)
 
 		try:
-			return (coupling,jds6600.measure_coupling[coupling])
+			return (coupling,jds6600.__measure_coupling[coupling])
 		except IndexError:
 			raise UnexpectedValueError(coupling)
 		# end try
@@ -953,29 +875,20 @@ class jds6600:
 	# get gate time (measure mode)
 	#  get (measure mode)
 	def measure_getgate(self):
-		cmd=self.__cmd2txt(jds6600.MEASURE_GATE)
+		gate=self.__getdata(jds6600.MEASURE_GATE)
 
-		self.__sendreadcmd(cmd)
-		(gate,)=self.__getrespondsandparse(cmd)
-		gate=int(gate)
 
 		# gate unit is 0.01 seconds
-		gate /= 100
-
-		return gate
+		return gate / 100
 	# end get gate (measure mode)
 
 
 	# get Measure mode (freq or period)
 	def measure_getmode(self):
-		cmd=self.__cmd2txt(jds6600.MEASURE_MODE)
-
-		self.__sendreadcmd(cmd)
-		(mode,)=self.__getrespondsandparse(cmd)
-		mode=int(mode)
+		mode=self.__getdata(jds6600.MEASURE_MODE)
 
 		try:
-			return (mode,jds6600.measure_mode[mode])
+			return (mode,jds6600.__measure_mode[mode])
 		except IndexError:
 			raise UnexpectedValueError(mode)
 		# end try
@@ -1005,27 +918,20 @@ class jds6600:
 			if coupling == "AC": coupling = "AC(EXT.IN)"
 			if coupling == "DC": coupling = "DC(EXT.IN)"
 
-			c=0 # counter
-			for mc in jds6600.measure_coupling:
-				if coupling == mc:
-					# found it
-					coupl = c
-					break
-				c += 1
-			else:
-				errmsg="Unknown measure coupling: "+coupling
+			try:
+				coupl=jds6600.__measure_coupling.index(coupling)
+			except ValueError:
+				errmsg="Unknown measure-mode coupling: "+coupling
 				raise ValueError(errmsg)
-			# end else - for
+			# end try
 		 # end else ) if (type is int or str?)
 
 		# set mode
-		cmd=self.__cmd2txt(jds6600.MEASURE_COUP)
-		self.__sendwritecmd(cmd,coupl)
+		self.__sendwritecmd(jds6600.MEASURE_COUP,coupl)
 
 	# end set measure_coupling 
 
-	# get gate time (measure mode)
-	#  get (measure mode)
+	# set gate time (measure mode)
 	def measure_setgate(self, gate):
 		# check type
 		if (type(gate) != int) and (type(gate) != float): raise TypeError(gate)
@@ -1034,15 +940,14 @@ class jds6600:
 		if (gate <= 0) or (gate > 1000):
 			raise ValueError(gate)
 
-		gate = int(gate*100+0.5)
+		gate = int(round(gate*100))
 
 		# minimum is 0.01 second
 		if gate == 0:
-			gate = 1
+			gate = 0.01
 
 		# set gate
-		cmd=self.__cmd2txt(jds6600.MEASURE_GATE)
-		self.__sendwritecmd(cmd,gate)
+		self.__sendwritecmd(jds6600.MEASURE_GATE,gate)
 	# end get gate (measure mode)
 
 
@@ -1068,137 +973,95 @@ class jds6600:
 			if mode== "FREQ": mode = "M.FREQ"
 			if mode== "PERIOD": mode = "M.PERIOD"
 
-			c=0 # counter
-			for mm in jds6600.measure_mode:
-				if mode == mm:
-					# found it
-					mode = c
-					break
-				c += 1
-			else:
+			try:
+				mode=jds6600.__measure_mode.index(mode)
+			except ValueError:
 				errmsg="Unknown measure mode: "+mode
 				raise ValueError(errmsg)
-			# end else - for
+			# end try
+
 		 # end else ) if (type is int or str?)
 
 		# set mode
-		cmd=self.__cmd2txt(jds6600.MEASURE_MODE)
-		self.__sendwritecmd(cmd,mode)
+		self.__sendwritecmd(jds6600.MEASURE_MODE,mode)
 
 	# end set measure_coupling 
 
 	# get Measure freq. (lowres / Freq-mode)
 	def measure_getfreq_f(self):
-		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_FREQ_LOWRES)
-
-		self.__sendreadcmd(cmd)
-		(freq,)=self.__getrespondsandparse(cmd)
+		freq=self.__getdata(jds6600.MEASURE_DATA_FREQ_LOWRES)
 
 		# unit is 0.1 Hz
-		return int(freq)/10
+		return freq/10
 	# end get freq-Lowres (measure)
 
 	# get Measure freq. (highes / Periode-mode)
 	def measure_getfreq_p(self):
-		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_FREQ_HIGHRES)
-
-		self.__sendreadcmd(cmd)
-		(freq,)=self.__getrespondsandparse(cmd)
+		freq=self.__getdata(jds6600.MEASURE_DATA_FREQ_HIGHRES)
 
 		# unit is 0.001 Hz
-		return int(freq)/1000
+		return freq/1000
 	# end get freq-Lowres (measure)
 
 	# get Measure pulsewith +
 	def measure_getpw1(self):
-		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_PW1)
-
-		self.__sendreadcmd(cmd)
-		(period,)=self.__getrespondsandparse(cmd)
+		pw=self.__getdata(jds6600.MEASURE_DATA_PW1)
 
 		# unit is 0.01 microsecond
-		return int(period)/100
+		return pw/100
 	# end get pulsewidth -
 
 	# get Measure pulsewidth -
 	def measure_getpw0(self):
-		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_PW0)
-
-		self.__sendreadcmd(cmd)
-		(period,)=self.__getrespondsandparse(cmd)
+		pw=self.__getdata(jds6600.MEASURE_DATA_PW0)
 
 		# unit is 0.01 microsecond
-		return int(period)/100
+		return pw/100
 	# end get pulsewidth +
 
 	# get Measure total period
 	def measure_getperiod(self):
-		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_PERIOD)
-
-		self.__sendreadcmd(cmd)
-		(period,)=self.__getrespondsandparse(cmd)
+		period=self.__getdata(jds6600.MEASURE_DATA_PERIOD)
 
 		# unit is 0.01 microsecond
-		return int(period)/100
+		return period/100
 	# end get total period
 
 	# get Measure dutycycle
 	def measure_getdutycycle(self):
-		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_DUTYCYCLE)
-
-		self.__sendreadcmd(cmd)
-		(dutycycle,)=self.__getrespondsandparse(cmd)
+		dutycycle=self.__getdata(jds6600.MEASURE_DATA_DUTYCYCLE)
 
 		# unit is 0.1 %
-		return int(dutycycle)/10
+		return dutycycle/10
 	# end get freq-Lowres (measure)
 
 	# get Measure unknown value 1 (related to freq, inverse-related to gatetime)
 	def measure_getu1(self):
-		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_U1)
-
-		self.__sendreadcmd(cmd)
-		(u1,)=self.__getrespondsandparse(cmd)
-
 		# unit is unknown, just return it
-		return int(u1)
+		return self.__getdata(jds6600.MEASURE_DATA_U1)
 	# end get freq-Lowres (measure)
 
 	# get Measure unknown value 2 (inverse related to freq)
 	def measure_getu2(self):
-		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_U2)
-
-		self.__sendreadcmd(cmd)
-		(u2,)=self.__getrespondsandparse(cmd)
-
 		# unit is unknown, just return it
-		return int(u2)
+		return self.__getdata(jds6600.MEASURE_DATA_U2)
 	# end get freq-Lowres (measure)
 
 	# get Measure unknown value 3 (nverse related to freq)
 	def measure_getu3(self):
-		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_U3)
-
-		self.__sendreadcmd(cmd)
-		(u3,)=self.__getrespondsandparse(cmd)
-
 		# unit is unknown, just return it
-		return int(u3)
+		return self.__getdata(jds6600.MEASURE_DATA_U3)
 	# end get freq-Lowres (measure)
 
 
 	# get Measure all (all usefull data: freq_f, freq_p, pw1, pw0, period, dutycycle
 	def measure_getall(self):
 
-		# start with freq_q
-		cmd=self.__cmd2txt(jds6600.MEASURE_DATA_FREQ_LOWRES)
-
-		# do query for 6 values
-		self.__sendreadcmd_n(cmd,6)
-		(freq_f, freq_p, pw1, pw0, period, dutycycle)=self.__getrespondsandparse_n(cmd,6)
+		# do query for 6 values (start with freq_q)
+		(freq_f, freq_p, pw1, pw0, period, dutycycle)=self.__getdata(jds6600.MEASURE_DATA_FREQ_LOWRES,6)
 
 		# return all
-		return (int(freq_f) / 10, int(freq_p) / 1000, int(pw1)/100, int(pw0)/100, int(period)/100, int(dutycycle)/10)
+		return (freq_f / 10, freq_p / 1000, pw1/100, pw0/100, period/100, dutycycle/10)
 	# end get freq-Lowres (measure)
 
 
@@ -1211,6 +1074,11 @@ class jds6600:
 		return self.measure_getcoupling()
 	# end counter get coupling
 
+	# get counter - counter
+	def counter_getcounter(self):
+		# unit is  1, just return data
+		return self.__getdata(jds6600.COUNTER_DATA_COUNTER)
+	# end get counter - counter
 
 	# counter setcoupling is the same as measure setcoupling
 	def counter_setcoupling(self,coupling):
@@ -1221,8 +1089,7 @@ class jds6600:
 	# counter - reset counter
 	def counter_reset(self):
 		# write 0 to register "COUNTER_RESETCOUNTER"
-			cmd=self.__cmd2txt(jds6600.COUNTER_RESETCOUNTER)
-			self.__sendwritecmd(cmd,0)
+			self.__sendwritecmd(jds6600.COUNTER_RESETCOUNTER,0)
 	# end counter reset counter
 
 	# start counter mode
@@ -1244,16 +1111,6 @@ class jds6600:
 	# end burst_start
 		
 
-	# get counter - counter
-	def counter_getcounter(self):
-		cmd=self.__cmd2txt(jds6600.COUNTER_DATA_COUNTER)
-
-		self.__sendreadcmd(cmd)
-		(counter,)=self.__getrespondsandparse(cmd)
-
-		# unit is  1, just return data
-		return int(counter)
-	# end get counter - counter
 
 
 
@@ -1263,46 +1120,27 @@ class jds6600:
 	# note, there are two "setmode" commands to enter "sweep" mode: "sweep_ch1' (mode 6) and "sweep_ch2" (mode 7)
 
 	def sweep_getstartfreq(self):
-		cmd=self.__cmd2txt(jds6600.SWEEP_STARTFREQ)
-
-		self.__sendreadcmd(cmd)
-		(freq,)=self.__getrespondsandparse(cmd)
-
-		# unit is  1, just return data
-		return int(freq)/100
+		# unit is  0.01Hz -> divide by 100
+		return self.__getdata(jds6600.SWEEP_STARTFREQ)/100
 	# end get sweep - startfreq
 
 	def sweep_getendfreq(self):
-		cmd=self.__cmd2txt(jds6600.SWEEP_ENDFREQ)
-
-		self.__sendreadcmd(cmd)
-		(freq,)=self.__getrespondsandparse(cmd)
-
-		# unit is  1, just return data
-		return int(freq)/100
+		# unit is  0.01 Hz -> divide by 100
+		return self.__getdata(jds6600.SWEEP_ENDFREQ)/100
 	# end get sweep - startfreq
 
 	def sweep_gettime(self):
-		cmd=self.__cmd2txt(jds6600.SWEEP_TIME)
-
-		self.__sendreadcmd(cmd)
-		(time,)=self.__getrespondsandparse(cmd)
-
-		# unit is  1, just return data
-		return int(time)/10
+		# unit is  0.1 sec -> divide by 10
+		return self.__getdata(jds6600.SWEEP_TIME)/10
 	# end get sweep - startfreq
 
 
 	# get sweep direction
 	def sweep_getdirection(self):
-		cmd=self.__cmd2txt(jds6600.SWEEP_DIRECTION)
-
-		self.__sendreadcmd(cmd)
-		(direction,)=self.__getrespondsandparse(cmd)
-		direction=int(direction)
+		direction=self.__getdata(jds6600.SWEEP_DIRECTION)
 
 		try:
-			return (direction,jds6600.sweep_direction[direction])
+			return (direction,jds6600.__sweep_direction[direction])
 		except IndexError:
 			raise UnexpectedValueError(direction)
 		# end try
@@ -1310,14 +1148,10 @@ class jds6600:
 
 	# get sweep mode
 	def sweep_getmode(self):
-		cmd=self.__cmd2txt(jds6600.SWEEP_MODE)
-
-		self.__sendreadcmd(cmd)
-		(mode,)=self.__getrespondsandparse(cmd)
-		mode=int(mode)
+		mode=self.__getdata(jds6600.SWEEP_MODE)
 
 		try:
-			return (mode,jds6600.sweep_mode[mode])
+			return (mode,jds6600.__sweep_mode[mode])
 		except IndexError:
 			raise UnexpectedValueError(mode)
 		# end try
@@ -1331,10 +1165,9 @@ class jds6600:
 			raise ValueError(frequency)
 
 		# frequency unit is 0.01 Hz
-		freq=int(frequency*100+0.5)
+		freq=int(round(frequency*100))
 
-		cmd=self.__cmd2txt(jds6600.SWEEP_STARTFREQ)
-		self.__sendwritecmd(cmd,freq)
+		self.__sendwritecmd(jds6600.SWEEP_STARTFREQ,freq)
 	# end set start freq
 
 	def sweep_setendfreq(self, frequency):
@@ -1345,10 +1178,9 @@ class jds6600:
 			raise ValueError(frequency)
 
 		# frequency unit is 0.01 Hz
-		freq=int(frequency*100+0.5)
+		freq=int(round(frequency*100))
 
-		cmd=self.__cmd2txt(jds6600.SWEEP_ENDFREQ)
-		self.__sendwritecmd(cmd,freq)
+		self.__sendwritecmd(jds6600.SWEEP_ENDFREQ,freq)
 	# end set end freq
 
 
@@ -1360,10 +1192,9 @@ class jds6600:
 			raise ValueError(time)
 
 		# time unit is 0.1 second
-		t=int(time*10+0.5)
+		t=int(round(time*10))
 
-		cmd=self.__cmd2txt(jds6600.SWEEP_TIME)
-		self.__sendwritecmd(cmd,t)
+		self.__sendwritecmd(jds6600.SWEEP_TIME,t)
 	# end set end freq
 
 
@@ -1383,25 +1214,19 @@ class jds6600:
 			direction=direction.upper()
 			
 			# spme shortcuts:
-			if direction.upper() == "RISEFALL": direction = "RISE&FALL"
-			if direction.upper() == "BOTH": direction = "RISE&FALL"
+			if direction == "RISEFALL": direction = "RISE&FALL"
+			if direction == "BOTH": direction = "RISE&FALL"
 
-			c=0 # counter
-			for sd in jds6600.sweep_direction:
-				if direction == sd:
-					# found it
-					direction = c
-					break
-				c += 1
-			else:
+			try:
+				direction=jds6600.__sweep_direction.index(direction)
+			except ValueError:
 				errmsg="Unknown sweep direction: "+direction
 				raise ValueError(errmsg)
 			# end else - for
 		 # end else ) if (type is int or str?)
 
 		# set mode
-		cmd=self.__cmd2txt(jds6600.SWEEP_DIRECTION)
-		self.__sendwritecmd(cmd,direction)
+		self.__sendwritecmd(jds6600.SWEEP_DIRECTION,direction)
 	# end set direction (sweep)
 
 
@@ -1421,25 +1246,19 @@ class jds6600:
 			mode=mode.upper()
 			
 			# spme shortcuts:
-			if mode.upper() == "LIN": mode = "LINEAR"
-			if mode.upper() == "LOG": mode = "LOGARITHM"
+			if mode == "LIN": mode = "LINEAR"
+			if mode == "LOG": mode = "LOGARITHM"
 
-			c=0 # counter
-			for sm in jds6600.sweep_mode:
-				if mode == sm:
-					# found it
-					mode = c
-					break
-				c += 1
-			else:
+			try:
+				mode=jds6600.__sweep_mode.index(mode)
+			except ValueError:
 				errmsg="Unknown sweep mode: "+mode
 				raise ValueError(errmsg)
 			# end else - for
 		 # end else ) if (type is int or str?)
 
 		# set mode
-		cmd=self.__cmd2txt(jds6600.SWEEP_MODE)
-		self.__sendwritecmd(cmd,mode)
+		self.__sendwritecmd(jds6600.SWEEP_MODE,mode)
 	# end set direction (sweep)
 
 
@@ -1515,10 +1334,168 @@ class jds6600:
 	#######################
 	# Part 9: PULSE
 
+
+	# get pulsewidth, converted to s
+	def pulse_getpulsewidth(self):
+		# pulsewith returns two datafiels, periode + multiplier
+		time,multi = self.__getdata(jds6600.PULSE_PULSEWIDTH)
+
+		if multi==0: return time / 1000000000 # ns
+		elif multi == 1: return time / 1000000 # us
+		else:
+			UnexptectedValue(multi)
+		# end else - elsif - if
+	# end 
+
+	# get pulsewidth, not converted
+	def pulse_getpulsewidth_m(self):
+		# pulsewith returns two datafiels, periode + multiplier
+		return self.__getdata(jds6600.PULSE_PULSEWIDTH)
+	# end 
+
+
+	# get period, concerted to s
+	def pulse_getperiod(self):
+		# period returns two datafiels, periode + multiplier
+		time,multi = self.__getdata(jds6600.PULSE_PERIOD)
+
+		if multi==0: return time / 1000000000 # ns
+		elif multi == 1: return time / 1000000 # us
+		else:
+			UnexptectedValue(multi)
+		# end else - elsif - if
+	# end 
+
+
+	# get period, not converted
+	def pulse_getperiod_m(self):
+		# period returns two datafiels, periode + multiplier
+		return self.__getdata(jds6600.PULSE_PERIOD)
+	# end 
+
+	# get offset
+	def pulse_getoffset(self):
+		# unit is %, just return data
+		return self.__getdata(jds6600.PULSE_OFFSET)
+	# end 
+
+	# get amplitude
+	def pulse_getamplitude(self):
+		# unit 0.01, divide by 100
+		return self.__getdata(jds6600.PULSE_AMPLITUDE)/100
+	# end 
+
+	# set pulsewith or period (backend function)
+	def __pulse_setpw_period(self, var, data, multiplier, converted):
+		maxval=(4,4000) # maximum data value (sec)
+		minval_c=(30e-9,1e-6) # minimum data value (converted: sec)
+		minval_nc=(3e-9,1e-6) # minimum data value (non converted)
+		multi=(1e9,1e6) # unit is 1ns or 1 us
+		data2reg=(jds6600.PULSE_PULSEWIDTH,jds6600.PULSE_PERIOD)
+		data2txt=("pulsewidth","period")
+
+		if (type(var) != int) or ((var != 0) and (var != 1)): raise RuntimeError("error __pulse_setpw_period: var") # var is 0 (for pulsewidth) or 1 (period)
+		if (type(data) != int) and (type(data) != float): raise TypeError(period)
+		if (type(converted) != int) or ((converted != 0) and (converted != 1)): raise RuntimeError("error __pulse_setpw_period: converted")
+
+		if type(multiplier) != int: raise TypeError(multiplier)
+
+		# multiplier should be 0 or 1
+		if (multiplier != 0) and (multiplier != 1):
+			errmsg="multiplier must be 0 (ns) or 1 (us)"
+			raise ValueError(errmsg)
+		# end if
+
+		# data must be between to allocated limits:
+		if converted == 0:
+			# non converted: allowed values: 30 to 400000000 (multi=0) / 1 to 4000000000 (multi=1)
+			if (data < minval_nc[multiplier]) or (data > 4e9):
+				errmsg="{} must be between {} and 4000000000".format(data2txt[var],minval_nc[multiplier])
+				raise ValueError(errmsg)
+			# end if
+		else:
+			# converted: allowed values: 30 ns to 4 sec. (multi=0) / 1 us to 4000 sec (multi=2)
+			if (data < minval_c[multiplier]) or (data > maxval[multiplier]):
+				errmsg="{} must be between {} and {}".format(data2txt[var],minval_c[var],maxval[multiplier])
+				raise ValueError(errmsg)
+		# end else - if
+
+
+		# convert from s to ns/us, if needed
+		if converted == 1:
+			data = str(round(data * multi[multiplier]))+","+str(multiplier)
+		else:
+			data = str(int(data))+","+str(multiplier)
+		# end if
+
+
+		print("data ="+data)
+		# done: now write
+		self.__sendwritecmd(data2reg[var],data)
+	# end set pw/period, low-level function
+
+
+	# set pw, not converted
+	def pulse_setpw(self,pw,multiplier=0):
+		# convert to low-level function
+		self.__pulse_setpw_period(0,pw,multiplier,1)
+	# end pulse_setpw (converted)
+	
+	# set pw, converted
+	def pulse_setpw_m(self,pw,multiplier):
+		# convert to low-level function
+		self.__pulse_setpw_period(0,pw,multiplier,0)
+	# end pulse_setpw (converted)
+	
+	# set period, not converted
+	def pulse_setperiod(self,pw,multiplier=0):
+		# convert to low-level function
+		self.__pulse_setpw_period(1,pw,multiplier,1)
+	# end pulse_setperiod (converted)
+	
+	# set period, converted
+	def pulse_setperiod_m(self,pw,multiplier):
+		# convert to low-level function
+		self.__pulse_setpw_period(1,pw,multiplier,0)
+	# end pulse_setperiod (converted)
+	
+
+	# set pulse offset
+	def pulse_setoffset(self,offset):
+		if (type(offset) == float): offset=int(offset)
+		if (type(offset) != int) and (type(offset) != float): raise TypeError(offset)
+
+		# offset is between 0 and 120 %
+		if (offset < 0) or (offset > 120):
+			errmsg="Offset must be between 0 and 120 %"
+			raise ValueError(errmsg)
+		# end if
+
+		# unit = 1 -> just send
+		self.__sendwritecmd(jds6600.PULSE_OFFSET,offset)
+	# end off
+
+
+	# set pulse amplitude
+	def pulse_setamplitude(self,amplitude):
+		if (type(amplitude) != int) and (type(amplitude) != float): raise TypeError(amplitude)
+
+		# amplitude is between 0 and 10 V
+		if (amplitude < 0) or (amplitude > 10):
+			errmsg="Amplitude must be between 0 and 10 Volt"
+			raise ValueError(errmsg)
+		# end if
+
+		# unit is 0.01V
+		amplitude=int(round(amplitude*100))
+		self.__sendwritecmd(jds6600.PULSE_AMPLITUDE,amplitude)
+	# end off
+
+
 	def pulse_start(self):
 		mode=self.getmode()
 
-		if mode[1] != "PULSE"
+		if mode[1] != "PULSE":
 			raise WrongMode()
 		# end if
 
@@ -1535,6 +1512,82 @@ class jds6600:
 
 	#######################
 	# Part 10: BURST
+
+
+	def burst_getnumberofbursts(self):
+		# unit is 1, just return value
+		return self.__getdata(jds6600.BURST_NUMBER)
+	# end burst get number of bursts
+
+	def burst_getmode(self):
+		mode = self.__getdata(jds6600.BURST_MODE)
+
+		try:
+			return(mode,jds6600.__burst_mode[mode])
+		except IndexError:
+			raise UnexpectedValue(mode)
+			
+		# end try
+	# end burst get mode
+
+
+	def burst_setnumberofbursts(self,burst):
+		if type(burst) == float: burst=int(burst)
+		if type(burst) != int: raise TypeError(burst)
+
+		# number of burst should be between 1 and 1048575
+		if (burst < 1) or (burst > 1048575):
+			errmsg="Number of bursts should be between 1 and 1048575"
+			raise ValueError(errmsg)
+		# end if
+
+		# unit is 1, just return value
+		self.__sendwritecmd(jds6600.BURST_NUMBER,burst)
+	# end burst get number of bursts
+
+
+	def burst_setmode(self,mode):
+		if type(mode) == float: mode=int(mode)
+		if (type(mode) != int) and (type(mode) != str): raise TypeError(mode)
+
+		if type(mode) == int:
+			# mode input is an integer
+			# mode should be between 0 and 3
+			if (mode < 0) or (mode > 3):
+				errmsg="Burst mode should between 0 and 3"
+				raise ValueError(mode)
+			# end if
+		else:
+			# mode input is a string
+
+			mode=mode.upper()
+
+			# shortcuts
+			if mode == "MANUAL": mode = "MANUAL TRIG."
+			if mode == "CH2": mode = "CH2 TRIG."
+			if mode == "EXT.AC": mode = "EXT.TRIG(AC)"
+			if mode == "EXT.DC": mode = "EXT.TRIG(DC)"
+
+			try:
+				mode=jds6600.__burst_mode.index(mode.upper())
+			except ValueError:
+				errmsg="Unknown burst mode: "+mode
+				raise ValueError(errmsg)
+			# end try
+
+		# end else - if
+
+		# stop if the burst-mode is running
+		self.burst_stop()
+	
+		# write command
+		self.__sendwritecmd(jds6600.BURST_MODE,mode)
+
+	def burst_resetcounter(self):
+		# reset counter: same as counter_reset_counter
+		self.counter_reset()
+	# end reset counter
+
 
 	def burst_start(self):
 		mode=self.getmode()
