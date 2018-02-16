@@ -8,6 +8,7 @@
 # Version 0.0.1: 2018/01/19: initial release, reading basic parameters
 # version 0.0.2: 2018/01/28: added "measure" menu + support functions, documentation
 # version 0.0.3: 2018/02/07: added "counter" and "sweep" menu
+# version 0.0.4: 2018/02/14: added "pulse" and "burst" menu + code cleanup
 
 
 import serial
@@ -1429,7 +1430,6 @@ class jds6600:
 		# end if
 
 
-		print("data ="+data)
 		# done: now write
 		self.__sendwritecmd(data2reg[var],data)
 	# end set pw/period, low-level function
