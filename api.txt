@@ -1,69 +1,81 @@
 API-calls:
 
+API version 1 (release 0.1.0)
+2018/02/17
+
+
 *** creating the object:
 from jds6800 import jds6600
 myjds6600 = jds6600("/dev/ttyUSB3")
 
 
 *** API information functions:
-getinfo_APIversion()
-	returns verion of the API (currently 0)
+getALIinfo_version()
+	return verion of the API (currently 1)
 
-getinfo_APIrelease()
-	returns release of the API (currently "0.0.2 2018-01-24")
+getALIinfo_release()
+	return release of the API (currently "0.1.0 2018-02-17")
 
 
 *** Device information functions:
 getinfo_devicetype()
-	returns the devicetype (MHz) of the device
+	return the devicetype (MHz) of the device
 
 getinfo_serialnumber()
-	returns the serial number of the device
+	return the serial number of the device
 
 getinfo_waveformlist()
-	returns list of all available waveforms on the device
+	return list of all available waveforms on the device
 
 getinfo_modelist()
-	returns list of all available modes on the device
-
+	return list of all available modes on the device
 
 
 
 *** Waveform and Channel Status:
+
 getchannelenable()
-	returns the status of the channel-enable information of both channels
+	return the configured channel-enable information of both channels
 
 getwaveform(channel)
-	returns the currently selected waveform of a channel
+	return the configured waveform of a channel
+		range: 1-2
 
 getfrequency(channel)
-	returns the current frequency of a channel
+	return the configured frequency of a channel (nomalised)
+		range: 1-2
 
 getfrequency_m(channel)
-	returns the current raw frequency and multiplier information of a channel
+	return the configured frequency and multiplier of a channel (not normalised)
+		range: 1-2
 
 getamplitude(channel)
-	returns the amplitude of a channel
+	return the configured amplitude of a channel
+		range: 1-2
 
 getoffset(channel)
-	returns the offset of a channel
+	return the configured offset of a channel
+		range: 1-2
 
 getdutycycle(channel)
-	returns the dutycycle of a channel
+	return the configured dutycycle of a channel
+		range: 1-2
 
 getphase()
-	returns the phase-setting of the channel-2
+	return the configured phase-setting of channel 2
 
 
 *** writing device and channel information
 
 setchannelenable(channel1,channel2)
 	sets channel-enable of both channels.
+		format: (bool,bool)
 
 setwaveform(channel,waveform-id)
 setwaveform(channel,waveform-name)
 	sets waveform for a channel, using either waveform-id (numeric) or
 	waveform-name (text)
+		numeric range 0-16, 101-160
 
 setfrequency(channel,frequency,multiplier = 0)
 	sets the frequency and frequenct-multiplier of a channel
@@ -77,27 +89,31 @@ setfrequency(channel,frequency,multiplier = 0)
 		0.00000001 Hz for multiplier-setting 4
 
 setamplitude(channel,amplitude)
-	sets the amplitude of a channel
+	set the amplitude of a channel
+		range: 0 - 10
 
 setoffset(channel,offset)
-	sets the offset of a channel
+	set the offset of a channel
+		range: -10 - 10
 
 setduttycycle(channel,dutycycle)
-	sets the dutycycle of a channel
+	set the dutycycle of a channel
+		range: 0 - 100
 
 setphase(phase)
-	sets the phase of channel 2 vs. channel 1
-
+	set the phase of channel 2 vs. channel 1
+		range: 0 - 360
 
 
 *** reading and changing mode
 
 getmode()
-	returns current mode
+	return current mode
 
 setmode(mode-id)
 setmode(mode-name)
-	sets mode of the device, either using modeid (numeric) or mode-name
+	set mode of the device, either using modeid (numeric) or mode-name
+		numeric range: 0 - 9
 
 stopallactions()
 	stops any action of the device
@@ -105,74 +121,78 @@ stopallactions()
 
 *** measure mode
 measure_getcoupling()
-	returns measure coupling (AC or DC)
+	return measure coupling (AC or DC)
+		numeric range: 0 - 1
 
 measure_getgate()
-	returns measure gate time
+	return measure gate time
 
 measure_getmode()
-	returns measure mode (Frequency or Periode)
+	return measure mode (Frequency or Period)
 
 measure_setcoupling(coupling-id)
 measure_setcoupling(coupling-name)
-	sets measure coupling, based on coupling-id (numeric) or coupling-name
-Note:
-"AC" is "AC(EXT.IN)"
-"DC" is "DC(EXT.IN)"
+	set measure coupling, based on coupling-id (numeric) or coupling-name
+		Note:
+		"AC" is "AC(EXT.IN)"
+		"DC" is "DC(EXT.IN)"
 
 
 measure_setgate(gatetime)
-	sets measure gate time
+	set measure gate time
+		range: 0 - 10
 
 measure_setmode(mode-id)
 measure_setmode(mode-name)
-	sets measure mode, based on mode-id (numeric) or mode-name
-Note:
-"FREQ"    is "M.FREQ"
-"PERIODE" is "M.PERIOD"
+	set measure mode, based on mode-id (numeric) or mode-name
+		numeric range: 0 - 1
+
+		Note:
+		"FREQ"    is "M.FREQ"
+		"PERIOD" is "M.PERIOD"
 
 
 measure_getfreq_f()
-	returns measured frequency in frequency mode (low resolution)
+	return measured frequency in frequency mode (low resolution)
 
 measure_getfreq_p()
-	returns measured frequency in periode mode (high resolution)
+	return measured frequency in periode mode (high resolution)
 
 measure_getpw1()
-	returns pulse width of the signal in "1" state
+	return pulse width of the signal in "1" state
 
 measure_getpw0()
-	returns pulse width of the signal in "0" state
+	return pulse width of the signal in "0" state
 
 measure_getperiod()
-	returns total period of the signal
+	return total period of the signal
 
 measure_getdutycycle()
-	returns dutycycle of the signal
+	return dutycycle of the signal
 
 measure_getall()
-	returns all usefull data (freq_f, freq_p, pw1, pw0, periode, dutycycle) in one query
+	return all usefull data (freq_f, freq_p, pw1, pw0, periode, dutycycle) in one query
 
 measure_getu1()
-	returns undefined value 1 (related to frequency, inverse-related to gatetime)
+	return unknown value 1 (related to frequency, inverse-related to gatetime)
 
 measure_getu2()
-	returns undefined value 2 (inverse-related to frequency)
+	return unknown value 2 (inverse-related to frequency)
 
 measure_getu3()
-	returns undefined value 3 (inverse-related to frequency)
+	return unknown value 3 (inverse-related to frequency)
 
 
 *** counter mode
 counter_getcoupling()
-	returns counter coupling (AC or DC)
+	return counter coupling (AC or DC)
 	
 counter_setcoupling(coupling-id)
 counter_setcoupling(coupling-name)
-	sets counter coupling, based on coupling-id (numeric) or coupling-name
-Note:
-"AC" is "AC(EXT.IN)"
-"DC" is "DC(EXT.IN)"
+	set counter coupling, based on coupling-id (numeric) or coupling-name
+		Note:
+		"AC" is "AC(EXT.IN)"
+		"DC" is "DC(EXT.IN)"
 
 counter_reset()
 	reset counter
@@ -185,53 +205,64 @@ counter_stop()
 
 
 *** sweep mode
+
 sweep_getstartfreq()
-	returns sweep start frequency
+	return configured sweep start frequency
 
 sweep_getendfreq()
-	returns sweep end frequency
+	return configured sweep end frequency
 
 sweep_gettime()
-	returns sweep time
+	return configured sweep time
 
 sweep_getdirection()
-	returns sweep direction (rise, fall or rize&fall)
+	return configured sweep direction (rise, fall or rize&fall)
 
 sweep_getmode()
-	returns sweep_mode (Linear or Logarithm)
+	return configured sweep_mode (Linear or Logarithm)
 
 sweep_setstartfreq(frequency)
-	sets sweep start frequency
+	set sweep start frequency
+		range: 0 - 60 Mhz
 
 sweep_setendfreq(frequency)
-	sets sweep end frequency
+	set sweep end frequency
+		range: 0 - 60 Mhz
 
 sweep_settime(time)
-	sets sweep time
+	set sweep time
+		range: 0.1 - 999.9
 
 sweep_setdirection(direction-id)
 sweep_setdirection(direction-name)
-	sets sweep direction, either numeric or text
-note:
-"BOTH" = "RISE&FALL"
-"RISEFALL" = "RISE&FALL"
+	set sweep direction, either numeric or text
+		numeric range: 0 - 2
+
+		note:
+		"BOTH" = "RISE&FALL"
+		"RISEFALL" = "RISE&FALL"
 
 sweep_setmode(mode-id)
 sweep_setmode(mode-name)
-	sers sweep mode, either numeric or text
-note:
-"LIN" = "LINEAR"
-"LOG" = "LOGARITHM"
+	set sweep mode, either numeric or text
+		numeric range: 0 - 1
+
+		note:
+		"LIN" = "LINEAR"
+		"LOG" = "LOGARITHM"
 
 
 sweep_getchannel()
-	returns sweep channel
+	return sweep channel
 
 sweep_setchannel(channel)
-	sets sweep channel
-note:
-changing channel using "sweep_setchannel" while running does NOT stop the sweep
-changing channel using "setmode" chile running WILL stop the sweep
+	set sweep channel
+		range: 0 - 1
+
+		note:
+		changing channel using "sweep_setchannel" while running does NOT stop the sweep
+		changing channel using "setmode" chile running WILL stop the sweep
+
 
 sweep_start()
 	start frequency sweep
@@ -240,9 +271,197 @@ sweep_stop()
 	stop frequency sweep
 
 
+
+*** pulse mode
+
+pulse_getpulsewidth()
+	return configured pulsewidth, normalised to second
+
+pulse_getpulsewidth_m()
+	return configured pulsewidth + multiplier, non-normalised
+		unit = 1 ns for multiplier = 0
+		unit = 1 µs for multiplier = 1
+
+pulse_getperiod()
+	return configured period, normalised to second
+
+pulse_getperiod_m()
+	return configured period, not-normalised
+		unit = 1 ns for multiplier = 0
+		unit = 1 µs for multiplier = 1
+
+pulse_getoffset()
+	return configured offset
+
+pulse_getamplitude()
+	return configured amplitude
+
+pulse_setpulsewidth(pw,multiplier=0)
+	set pulsewidth, normalised to second
+		range: 30e-9 to 4 for multiplier = 0
+		range: 1e-6 to 4000 for multiplier = 1
+
+pulse_setpulsewidth_m(pw,multiplier)
+	set pulsewidth, not normalised
+		unit = 1 ns for multiplier = 0, range 30 - 4e9
+		unit = 1 µs fir multiplier = 1, range 1 - 4e9
+
+pulse_setperiod(period,multiplier=0)
+	set period, normalised to second
+		accepted range: 30e-9 to 4 for multiplier = 0
+		accepted range: 1e-6 to 4000 for multiplier = 1
+
+pulse_setperiod(period,multiplier)
+	set period, not normalised
+		unit = 1 ns for multiplier = 0, range 30 - 4e9
+		unit = 1 µs fir multiplier = 1, range 1 - 4e9
+
+pulse_setoffset(offset)
+	set pulse offset
+		range: 0 - 120 %
+
+
+pulse_setamplitude(amplitude)
+	set pulse amplitude
+		range: 0 - 10 volt
+
+
+pulse_start()
+	start pulse action
+
+pulse_stop()
+	stop pulse action
+
+
+
+*** burst mode
+burst_getnumberofbursts()
+	return the configured number-of-bursts for a burst-event
+
+burst_getmode()
+	return the configured burst-mode (manual, ch2, ext.trig(AC) or "ext.trig(DC)"
+
+burst_setnumberofbursts(burst)
+	sets the number-of-bursts for a burst-event
+		range: 1 - 1048575
+
+burst_setmode(mode-id)
+burst_setmode(mode-txt)
+	set burst-mode via mode-id (numeric) or burst-text
+		note:
+		"MANUAL" is "MANUAL TRIG."
+		"CH2" i "CH2 TRIG."
+		"EXT.AC" is "EXT.TRIG(AC)"
+		"EXT.DC" is "EXT.TRIG(DC)"
+
+
+burst_start()
+	start burst action
+
+burst_stop()
+	stop burst action
+
+burst_resetcounter()
+	reset burst-counter
+
+
+
+*** system mode
+
+system_getsound(bugfix=True) (*)
+	return configured sound parameter
+
+
+system_getbrightness(bugfix=True) (*)
+	return configured brightness parameter
+
+
+system_getlanguage(bugfix=True) (*)
+	return configured language parameter
+
+
+system_getsync(bugfix=True) (*)
+	return configured "syncrone" parameter
+		note: returns a 5-element list: (frequency, wave, amplitude, dutycycle, offset)
+
+
+system_getarbmaxnum(bugfix=True) (*)
+	return maximum-number-of-arbitrary-waveform parameter
+
+
+
+(*) There seams to be a bug in certain versions of the jds6600 firmware where the register-port used to read a
+		system parameter is one highter then the register used to write(set) that parameter
+
+		Setting the "bigfix" parameter in the "system_set*" to True (default setting) will fix this issue
+
+
+system_setsound(sound)
+	set sound parameter
+		range: False,True
+
+
+system setbrightness(brightness)
+	set brightness parameter
+		range: 1 - 12
+
+system_setlanguage(language-id)
+system_setlanguage(language-txt)
+	set language, using either language-id (numeric) or language-txt
+		note:
+		"EN" is "ENGLISH"
+		"CH" is "CHINESE"
+
+system_setsync(freq,wave,ampl,duty,offs)
+	set syncronised parameter
+
+system_setarbmaxnum(arbmaxnum)
+	set maximum number of arbitrary waveforms parameter
+		range: 1 - 60
+
+
+*** profile operations
+
+system_saveprofile(profile) 
+	write the current configuration of the device to the specified profile in memory (*)
+		range: 0 - 99
+
+system_loadprofile(profile) 
+	load the specified pprofile from memory into the current configuration of the device (*)
+		range: 0 - 99
+
+system_clearprofile(profile) 
+	remove the specified profile from memory (*)
+
+
+(*) Note:
+	The configuration of profile 0 is loaded from memory at boottime
+
+
+
+*** arbitrary waveform operations
+arb_getwave(waveid)
+	returns the specified arbitrary waveform from memory
+		range: 1 - 60
+
+arb_setwave(waveid,wave)
+	programs the wave into the arbitrary waveform memory
+		range: 1 - 60
+
+	The arbitrary waveform must be formated as a 2048 element list or Tuple, containing integer values (range 0 - 4095)
+
+
+
+
 *** DEBUG
 DEBUG_readregister(register,count)
 	read register
 
 DEBUG_writeregister(register,value)
 	write register
+
+
+
+ENJOY!!!
+Kristoff Bonne (ON1ARF)
+
