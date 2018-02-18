@@ -10,10 +10,10 @@ myjds6600 = jds6600("/dev/ttyUSB3")
 
 
 *** API information functions:
-getALIinfo_version()
+getAPIinfo_version()
 	return verion of the API (currently 1)
 
-getALIinfo_release()
+getAPIinfo_release()
 	return release of the API (currently "0.1.0 2018-02-17")
 
 

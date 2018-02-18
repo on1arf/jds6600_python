@@ -57,12 +57,12 @@
 
 # 51 to 56: system settings
 # see remarks about firmware-bug below
-51 system (READ: ???, WRITE: sound)
-52 system (READ: sound, WRITE: brightness)
-53 system (READ: brightness, WRITE:language)
-54 system (READ: language, WRITE: syncr.)
-55 system (READ: sync, WRITE ArbMaxNum)
-56 system (READ: ArbMaxNum, WRITE: ????)
+51 system READ: ----------- WRITE: sound
+52 system READ: sound       WRITE: brightness
+53 system READ: brightness  WRITE: language 
+54 system READ: language    WRITE: syncronised
+55 system READ: sync        WRITE: ArbMaxNum
+56 system READ: ArbMaxNum   WRITE: -----------
 
 # 70 to  72: profile actions (part of system menu)
 70 profile save: write profile number to register
