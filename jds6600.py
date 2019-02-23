@@ -1258,7 +1258,7 @@ class jds6600:
 		if (type(direction) != int) and (type(direction) != str): raise TypeError(direction)
 
 		if type(direction) == int:
-			# mode is 0 (RISE°, 1 (FALL) or 2 (RISE&FALL)
+			# mode is 0 (RISE), 1 (FALL) or 2 (RISE&FALL)
 			if not (direction in (0,1,2)):
 				raise ValueError(direction)
 
