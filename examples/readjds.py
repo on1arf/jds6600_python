@@ -37,9 +37,9 @@ j.getphase()
 
 
 # changing status
-j.setfrequency(1,5000)
+j.setfrequency(1,1000)
 j.setfrequency(1,40000,1)
 
 j.setwaveform(2,2)
-j.setwaveform(2,"sinc")
+j.setwaveform(1,"sinc")
 
