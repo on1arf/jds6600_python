@@ -2,23 +2,25 @@
 # connected over USB
 
 # version 0.1 - 20180126
+# version 0.2 - 20191007
 
 # kristoff Bonne (ON1ARF)
 
 # import library
 from jds6600 import jds6600
 
-
-jds6600.getAPIversion()
-jds6600.getAPIrelease()
-
 j = jds6600("/dev/ttyUSB3")
 
-# API inforation calls
-j.getdevicetype()
-j.getserialnumber()
+j.getAPIinfo_version()
+j.getAPIinfo_release()
 
-j.getwaveformlist()
+
+
+# API information calls
+j.getinfo_devicetype()
+j.getinfo_serialnumber()
+
+j.getinfo_waveformlist()
 
 
 # get status of jds6600
@@ -35,9 +37,9 @@ j.getphase()
 
 
 # changing status
-j.setfrequency(1,1000)
-j.setfrequency_m(1,40000,1)
+j.setfrequency(1,5000)
+j.setfrequency(1,40000,1)
 
 j.setwaveform(2,2)
-j.setwaveform(1,"sinc")
+j.setwaveform(2,"sinc")
 
