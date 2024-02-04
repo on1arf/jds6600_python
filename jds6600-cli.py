@@ -170,15 +170,14 @@ def setdutycycle(cli: JDS6600_Cli, channel, dutycycle):
     print("Done")
 
 @write_group.command(help="Set phase")
-@click.argument("channel", type=int)
 @click.argument("phase", type=float)
 @click.pass_obj
-def setphase(cli: JDS6600_Cli, channel, phase):
+def setphase(cli: JDS6600_Cli, phase):
     if phase < 0:
         phase = 0
     elif phase > 360:
         phase = 360
-    cli.jds6600.setphase(channel, phase)
+    cli.jds6600.setphase(phase)
     print("Done")
 
 
